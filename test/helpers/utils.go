@@ -661,10 +661,25 @@ func SkipK8sVersions(k8sVersions string) bool {
 // DualStackSupported returns whether the current environment has DualStack IPv6
 // enabled or not for the cluster.
 func DualStackSupported() bool {
-	k8sVersion := GetCurrentK8SEnv()
-	switch k8sVersion {
+	switch GetCurrentK8SEnv() {
 	// Older kubernetes versions do not support DualStack mode.
 	case "1.12", "1.13", "1.14", "1.15", "1.16", "1.17":
+		return false
+	}
+
+	// We only have DualStack enabled in Vagrant test env.
+	return GetCurrentIntegration() == ""
+}
+
+// DualStackSupportBeta returns true if the environment has a Kubernetes version that
+// has support for k8s DualStack beta API types.
+func DualStackSupportBeta() bool {
+	switch GetCurrentK8SEnv() {
+	// DualStack support was promoted to beta with API types finalized in k8s 1.21
+	// The API types for dualstack services are same in k8s 1.20 and 1.21 so we include
+	// K8s version 1.20 as well.
+	// https://github.com/kubernetes/kubernetes/pull/98969
+	case "1.12", "1.13", "1.14", "1.15", "1.16", "1.17", "1.18", "1.19":
 		return false
 	}
 
