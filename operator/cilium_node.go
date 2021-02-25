@@ -61,7 +61,9 @@ func startSynchronizingCiliumNodes(nodeManager allocator.NodeEventHandler,
 					// node is deep copied before it is stored in pkg/aws/eni
 					nodeManager.Create(node)
 					if wgManager != nil {
-						wgManager.AddNode(node)
+						if err := wgManager.AddNode(node); err != nil {
+							log.WithError(err).Warn("Wireguard add node")
+						}
 					}
 				} else {
 					log.Warningf("Unknown CiliumNode object type %T received: %+v", obj, obj)
@@ -76,7 +78,9 @@ func startSynchronizingCiliumNodes(nodeManager allocator.NodeEventHandler,
 						// node is deep copied before it is stored in pkg/aws/eni
 						nodeManager.Update(node)
 						if wgManager != nil {
-							wgManager.UpdateNode(node)
+							if err := wgManager.UpdateNode(node); err != nil {
+								log.WithError(err).Warn("Wireguard update node")
+							}
 						}
 					}
 				}

@@ -2838,6 +2838,9 @@ func (c *DaemonConfig) Populate() {
 	c.KubeProxyReplacementHealthzBindAddr = viper.GetString(KubeProxyReplacementHealthzBindAddr)
 
 	subnet := viper.GetString(WireguardSubnetV4)
+	if subnet == "" {
+		subnet = "172.16.42.0/24"
+	}
 	_, ipnet, err := net.ParseCIDR(subnet)
 	if err != nil {
 		log.WithError(err).Fatalf("Failed to parse wireguard IPv4 subnet: %s", subnet)
