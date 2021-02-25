@@ -649,6 +649,12 @@ const (
 	// IPSecKeyFileName is the name of the option for ipsec key file
 	IPSecKeyFileName = "ipsec-key-file"
 
+	// TODO docs
+	EnableWireguard = "enable-wireguard"
+
+	// TODO docs
+	WireguardSubnetV4 = "wireguard-subnet"
+
 	// KVstoreLeaseTTL is the time-to-live for lease in kvstore.
 	KVstoreLeaseTTL = "kvstore-lease-ttl"
 
@@ -1603,6 +1609,9 @@ type DaemonConfig struct {
 	// IPSec key file for stored keys
 	IPSecKeyFile string
 
+	EnableWireguard   bool
+	WireguardSubnetV4 *net.IPNet
+
 	// MonitorQueueSize is the size of the monitor event queue
 	MonitorQueueSize int
 
@@ -2527,6 +2536,7 @@ func (c *DaemonConfig) Populate() {
 	c.EnableIPv6NDP = viper.GetBool(EnableIPv6NDPName)
 	c.IPv6MCastDevice = viper.GetString(IPv6MCastDevice)
 	c.EnableIPSec = viper.GetBool(EnableIPSecName)
+	c.EnableWireguard = viper.GetBool(EnableWireguard)
 	c.EnableWellKnownIdentities = viper.GetBool(EnableWellKnownIdentities)
 	c.EndpointInterfaceNamePrefix = viper.GetString(EndpointInterfaceNamePrefix)
 	c.DevicePreFilter = viper.GetString(PrefilterDevice)
@@ -2826,6 +2836,13 @@ func (c *DaemonConfig) Populate() {
 	}
 
 	c.KubeProxyReplacementHealthzBindAddr = viper.GetString(KubeProxyReplacementHealthzBindAddr)
+
+	subnet := viper.GetString(WireguardSubnetV4)
+	_, ipnet, err := net.ParseCIDR(subnet)
+	if err != nil {
+		log.WithError(err).Fatalf("Failed to parse wireguard IPv4 subnet: %s", subnet)
+	}
+	c.WireguardSubnetV4 = ipnet
 
 	// Hubble options.
 	c.EnableHubble = viper.GetBool(EnableHubble)

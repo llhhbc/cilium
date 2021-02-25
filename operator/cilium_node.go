@@ -23,6 +23,7 @@ import (
 	"github.com/cilium/cilium/pkg/k8s/informer"
 	v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/wireguard"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -40,7 +41,9 @@ var (
 	k8sCiliumNodesCacheSynced = make(chan struct{})
 )
 
-func startSynchronizingCiliumNodes(nodeManager allocator.NodeEventHandler) {
+func startSynchronizingCiliumNodes(nodeManager allocator.NodeEventHandler,
+	wgManager *wireguard.Manager) {
+
 	log.Info("Starting to synchronize CiliumNode custom resources")
 
 	// TODO: The operator is currently storing a full copy of the
@@ -57,6 +60,9 @@ func startSynchronizingCiliumNodes(nodeManager allocator.NodeEventHandler) {
 				if node := k8s.ObjToCiliumNode(obj); node != nil {
 					// node is deep copied before it is stored in pkg/aws/eni
 					nodeManager.Create(node)
+					if wgManager != nil {
+						wgManager.AddNode(node)
+					}
 				} else {
 					log.Warningf("Unknown CiliumNode object type %T received: %+v", obj, obj)
 				}
@@ -69,12 +75,18 @@ func startSynchronizingCiliumNodes(nodeManager allocator.NodeEventHandler) {
 						}
 						// node is deep copied before it is stored in pkg/aws/eni
 						nodeManager.Update(node)
+						if wgManager != nil {
+							wgManager.UpdateNode(node)
+						}
 					}
 				}
 			},
 			DeleteFunc: func(obj interface{}) {
 				if node := k8s.ObjToCiliumNode(obj); node != nil {
 					nodeManager.Delete(node.Name)
+					if wgManager != nil {
+						wgManager.DeleteNode(node)
+					}
 				}
 			},
 		},

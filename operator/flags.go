@@ -101,6 +101,12 @@ func init() {
 		option.LogOpt, "Log driver options for cilium-operator")
 	option.BindEnv(option.LogOpt)
 
+	flags.Bool(option.EnableWireguard, false, "Enable wireguard")
+	option.BindEnv(option.EnableWireguard)
+
+	flags.String(option.WireguardSubnetV4, "172.16.42.0/24", "Wireguard tunnel IPv4 subnet")
+	option.BindEnv(option.WireguardSubnetV4)
+
 	var defaultIPAM string
 	switch binaryName {
 	case "cilium-operator":
