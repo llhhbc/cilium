@@ -47,7 +47,7 @@ func (m *Manager) AddNode(n *v2.CiliumNode) error {
 
 	fmt.Println("LOL AddNode", n)
 
-	return m.allocateIP(n)
+	return m.allocateIP(n, false)
 }
 
 func (m *Manager) UpdateNode(n *v2.CiliumNode) error {
@@ -56,7 +56,7 @@ func (m *Manager) UpdateNode(n *v2.CiliumNode) error {
 
 	fmt.Println("LOL UpdateNode", n)
 
-	return m.allocateIP(n)
+	return m.allocateIP(n, true)
 }
 
 func (m *Manager) DeleteNode(n *v2.CiliumNode) {
@@ -108,7 +108,7 @@ func (m *Manager) Resync() error {
 }
 
 // allocateIP must be called with *Manager mutex being held.
-func (m *Manager) allocateIP(n *v2.CiliumNode) error {
+func (m *Manager) allocateIP(n *v2.CiliumNode, isUpdate bool) error {
 	found := false
 	var ip net.IP
 	for _, addr := range n.Spec.Addresses {
@@ -134,10 +134,8 @@ func (m *Manager) allocateIP(n *v2.CiliumNode) error {
 				return err
 			}
 		}
-	} else {
-		err := m.ipAlloc.Allocate(ip)
-		// TODO next time start from here
-		if err != nil {
+	} else if !isUpdate {
+		if err := m.ipAlloc.Allocate(ip); err != nil {
 			return fmt.Errorf("failed to re-allocate IP addr %s for node %s: %w", ip, n.ObjectMeta.Name, err)
 		}
 	}
