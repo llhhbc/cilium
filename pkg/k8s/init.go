@@ -30,6 +30,7 @@ import (
 	k8sversion "github.com/cilium/cilium/pkg/k8s/version"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/node"
+	"github.com/cilium/cilium/pkg/node/addressing"
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/source"
@@ -74,7 +75,7 @@ func retrieveNodeInformation(nodeName string) (*nodeTypes.Node, error) {
 	mightAutoDetectDevices := option.MightAutoDetectDevices()
 	var n *nodeTypes.Node
 
-	if option.Config.IPAM == ipamOption.IPAMClusterPool {
+	if option.Config.IPAM == ipamOption.IPAMClusterPool || option.Config.EnableWireguard {
 		ciliumNode, err := CiliumClient().CiliumV2().CiliumNodes().Get(context.TODO(), nodeName, v1.GetOptions{})
 		if err != nil {
 			// If no CIDR is required, retrieving the node information is
@@ -120,6 +121,14 @@ func retrieveNodeInformation(nodeName string) (*nodeTypes.Node, error) {
 		// used to update state
 		n = ParseNode(typesNode, source.Unspec)
 		log.WithField(logfields.NodeName, n.Name).Info("Retrieved node information from kubernetes node")
+	}
+
+	if option.Config.EnableWireguard {
+		if ip := n.GetIPByType(addressing.NodeWireguardIP, false); ip == nil {
+			return nil, fmt.Errorf("wireguard IPv4 not available")
+		} else {
+			fmt.Println("!!! BINGO", ip)
+		}
 	}
 
 	if requireIPv4CIDR && n.IPv4AllocCIDR == nil {
