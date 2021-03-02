@@ -21,6 +21,10 @@ import (
 	"net"
 	"os"
 
+	"github.com/cilium/cilium/pkg/node/addressing"
+
+	"github.com/cilium/cilium/pkg/wireguard"
+
 	"github.com/cilium/cilium/pkg/cidr"
 	"github.com/cilium/cilium/pkg/counter"
 	"github.com/cilium/cilium/pkg/datapath"
@@ -60,11 +64,12 @@ type linuxNodeHandler struct {
 	neighNextHopByNode   map[nodeTypes.Identity]string // val = string(net.IP)
 	neighNextHopRefCount counter.StringCounter
 	neighByNextHop       map[string]*netlink.Neigh // key = string(net.IP)
+	wgAgent              *wireguard.Agent
 }
 
 // NewNodeHandler returns a new node handler to handle node events and
 // implement the implications in the Linux datapath
-func NewNodeHandler(datapathConfig DatapathConfiguration, nodeAddressing datapath.NodeAddressing) datapath.NodeHandler {
+func NewNodeHandler(datapathConfig DatapathConfiguration, nodeAddressing datapath.NodeAddressing, wgAgent *wireguard.Agent) datapath.NodeHandler {
 	return &linuxNodeHandler{
 		nodeAddressing:       nodeAddressing,
 		datapathConfig:       datapathConfig,
@@ -72,6 +77,7 @@ func NewNodeHandler(datapathConfig DatapathConfiguration, nodeAddressing datapat
 		neighNextHopByNode:   map[nodeTypes.Identity]string{},
 		neighNextHopRefCount: counter.StringCounter{},
 		neighByNextHop:       map[string]*netlink.Neigh{},
+		wgAgent:              wgAgent,
 	}
 }
 
@@ -910,6 +916,14 @@ func (n *linuxNodeHandler) nodeUpdate(oldNode, newNode *nodeTypes.Node, firstAdd
 		if n.subnetEncryption() {
 			n.enableSubnetIPsec(n.nodeConfig.IPv4PodSubnets, n.nodeConfig.IPv6PodSubnets)
 		}
+
+		if option.Config.EnableWireguard {
+			wgIPv4 := newNode.GetIPByType(addressing.NodeWireguardIP, false)
+			if err := n.wgAgent.LocalNodeUpdated(wgIPv4); err != nil {
+				return err // TODO who checks this?
+			}
+		}
+
 		return nil
 	}
 

@@ -26,6 +26,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cilium/cilium/pkg/wireguard"
+
 	"github.com/cilium/cilium/api/v1/server"
 	"github.com/cilium/cilium/api/v1/server/restapi"
 	enitypes "github.com/cilium/cilium/pkg/aws/eni/types"
@@ -388,6 +390,9 @@ func init() {
 
 	flags.String(option.IPSecKeyFileName, "", "Path to IPSec key file")
 	option.BindEnv(option.IPSecKeyFileName)
+
+	flags.Bool(option.EnableWireguard, false, "Enable wireguard")
+	option.BindEnv(option.EnableWireguard)
 
 	flags.Bool(option.ForceLocalPolicyEvalAtSource, defaults.ForceLocalPolicyEvalAtSource, "Force policy evaluation of all local communication at the source endpoint")
 	option.BindEnv(option.ForceLocalPolicyEvalAtSource)
@@ -1433,6 +1438,16 @@ func runDaemon() {
 	iptablesManager := &iptables.IptablesManager{}
 	iptablesManager.Init()
 
+	var wgAgent *wireguard.Agent
+	if option.Config.EnableWireguard {
+		var err error
+		privateKeyPath := filepath.Join(option.Config.StateDir, "wg.priv") // TODO make const
+		wgAgent, err = wireguard.NewAgent(privateKeyPath, option.Config.WireguardSubnetV4)
+		if err != nil {
+			log.WithError(err).Fatal("Failed to initialize wireguard")
+		}
+	}
+
 	if k8s.IsEnabled() {
 		bootstrapStats.k8sInit.Start()
 		if err := k8s.Init(option.Config); err != nil {
@@ -1444,7 +1459,7 @@ func runDaemon() {
 	ctx, cancel := context.WithCancel(server.ServerCtx)
 	d, restoredEndpoints, err := NewDaemon(ctx, cancel,
 		WithDefaultEndpointManager(ctx, endpoint.CheckHealth),
-		linuxdatapath.NewDatapath(datapathConfig, iptablesManager))
+		linuxdatapath.NewDatapath(datapathConfig, iptablesManager, wgAgent))
 	if err != nil {
 		select {
 		case <-server.ServerCtx.Done():

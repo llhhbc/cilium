@@ -303,6 +303,19 @@ func (n *Node) GetCiliumInternalIP(ipv6 bool) net.IP {
 	return nil
 }
 
+func (n *Node) GetIPByType(addrType addressing.AddressType, ipv6 bool) net.IP {
+	for _, addr := range n.IPAddresses {
+		if (ipv6 && addr.IP.To4() != nil) ||
+			(!ipv6 && addr.IP.To4() == nil) {
+			continue
+		}
+		if addr.Type == addrType {
+			return addr.IP
+		}
+	}
+	return nil
+}
+
 func (n *Node) getPrimaryAddress() *models.NodeAddressing {
 	v4, v4Type := n.getNodeIP(false)
 	v6, v6Type := n.getNodeIP(true)

@@ -20,6 +20,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/linux/config"
 	"github.com/cilium/cilium/pkg/datapath/loader"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/wireguard"
 )
 
 // DatapathConfiguration is the static configuration of the datapath. The
@@ -41,7 +42,7 @@ type linuxDatapath struct {
 }
 
 // NewDatapath creates a new Linux datapath
-func NewDatapath(cfg DatapathConfiguration, ruleManager datapath.IptablesManager) datapath.Datapath {
+func NewDatapath(cfg DatapathConfiguration, ruleManager datapath.IptablesManager, wgAgent *wireguard.Agent) datapath.Datapath {
 	dp := &linuxDatapath{
 		ConfigWriter:    &config.HeaderfileWriter{},
 		IptablesManager: ruleManager,
@@ -50,7 +51,7 @@ func NewDatapath(cfg DatapathConfiguration, ruleManager datapath.IptablesManager
 		loader:          loader.NewLoader(canDisableDwarfRelocations),
 	}
 
-	dp.node = NewNodeHandler(cfg, dp.nodeAddressing)
+	dp.node = NewNodeHandler(cfg, dp.nodeAddressing, wgAgent)
 
 	if cfg.EncryptInterface != "" {
 		if err := connector.DisableRpFilter(cfg.EncryptInterface); err != nil {
