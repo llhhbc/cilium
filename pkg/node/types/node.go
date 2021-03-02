@@ -193,6 +193,8 @@ type Node struct {
 
 	// NodeIdentity is the numeric identity allocated for the node
 	NodeIdentity uint32
+
+	WireguardPubKey string
 }
 
 // Fullname returns the node's full name including the cluster name if a

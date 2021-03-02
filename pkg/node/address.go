@@ -58,7 +58,8 @@ var (
 
 	ipsecKeyIdentity uint8
 
-	wireguardIPv4 net.IP
+	wireguardIPv4   net.IP
+	wireguardPubKey string
 )
 
 type RouterInfo interface {
@@ -574,6 +575,14 @@ func SetWireguardIPv4(ip net.IP) {
 
 func GetWireguardIPv4() net.IP {
 	return wireguardIPv4
+}
+
+func SetWireguardPubKey(key string) {
+	wireguardPubKey = key
+}
+
+func GetWireguardPubKey() string {
+	return wireguardPubKey
 }
 
 func copyStringToNetIPMap(in map[string]net.IP) map[string]net.IP {

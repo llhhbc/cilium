@@ -16,7 +16,8 @@ import (
 )
 
 const (
-	wgIfaceName = "wg0" // TODO make config param
+	wgIfaceName      = "wg0"                          // TODO make config param
+	PubKeyAnnotation = "io.cilium.network.wg-pub-key" // TODO use consts from other pkg
 )
 
 type Agent struct {
@@ -36,6 +37,10 @@ func NewAgent(privKey string, wgV4Net *net.IPNet) (*Agent, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	node.SetWireguardPubKey(key.PublicKey().String())
+
+	// TODO
 
 	wgClient, err := wgctrl.New()
 	if err != nil {

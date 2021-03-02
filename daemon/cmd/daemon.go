@@ -502,7 +502,7 @@ func NewDaemon(ctx context.Context, cancel context.CancelFunc, epMgr *endpointma
 			return nil, restoredEndpoints, err
 		}
 
-		if option.Config.IPAM == ipamOption.IPAMClusterPool {
+		if option.Config.IPAM == ipamOption.IPAMClusterPool || option.Config.EnableWireguard {
 			// Create the CiliumNode custom resource. This call will block until
 			// the custom resource has been created
 			d.nodeDiscovery.UpdateCiliumNodeResource()

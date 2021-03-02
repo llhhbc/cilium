@@ -44,6 +44,7 @@ import (
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/source"
+	"github.com/cilium/cilium/pkg/wireguard"
 	cnitypes "github.com/cilium/cilium/plugins/cilium-cni/types"
 
 	"github.com/sirupsen/logrus"
@@ -70,6 +71,7 @@ type NodeDiscovery struct {
 	Registered            chan struct{}
 	LocalStateInitialized chan struct{}
 	NetConf               *cnitypes.NetConf
+	wireguardPubKey       string
 }
 
 func enableLocalNodeRoute() bool {
@@ -177,6 +179,7 @@ func (n *NodeDiscovery) StartDiscovery(nodeName string) {
 	n.LocalNode.IPv6AllocCIDR = node.GetIPv6AllocRange()
 	n.LocalNode.ClusterID = option.Config.ClusterID
 	n.LocalNode.EncryptionKey = node.GetIPsecKeyIdentity()
+	n.LocalNode.WireguardPubKey = node.GetWireguardPubKey()
 	n.LocalNode.Labels = node.GetLabels()
 	n.LocalNode.NodeIdentity = identity.GetLocalNodeID().Uint32()
 
@@ -429,6 +432,13 @@ func (n *NodeDiscovery) mutateNodeResource(nodeResource *ciliumv2.CiliumNode) er
 	nodeResource.Spec.HealthAddressing.IPv6 = ""
 	if ip := n.LocalNode.IPv6HealthIP; ip != nil {
 		nodeResource.Spec.HealthAddressing.IPv6 = ip.String()
+	}
+
+	if pk := n.LocalNode.WireguardPubKey; pk != "" {
+		if nodeResource.ObjectMeta.Annotations == nil {
+			nodeResource.ObjectMeta.Annotations = make(map[string]string)
+		}
+		nodeResource.ObjectMeta.Annotations[wireguard.PubKeyAnnotation] = pk
 	}
 
 	switch option.Config.IPAM {
