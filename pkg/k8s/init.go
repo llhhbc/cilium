@@ -258,6 +258,8 @@ func WaitForNodeInformation() error {
 			node.SetIPv6(nodeIP6)
 		}
 
+		node.SetWireguardIPv4(n.GetIPByType(addressing.NodeWireguardIP, false))
+
 		node.SetLabels(n.Labels)
 
 		node.SetK8sExternalIPv4(n.GetExternalIP(false))

@@ -7,9 +7,10 @@ import (
 	"net"
 	"os"
 
-	"golang.org/x/sys/unix"
+	"github.com/cilium/cilium/pkg/node"
 
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 	"golang.zx2c4.com/wireguard/wgctrl"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
@@ -24,6 +25,8 @@ type Agent struct {
 
 	wireguardV4CIDR *net.IPNet
 	wireguardIPv4   net.IP
+
+	isInit bool
 
 	listenPort int
 }
@@ -55,42 +58,50 @@ func (a *Agent) Close() error {
 	return a.wgClient.Close()
 }
 
-func (a *Agent) LocalNodeUpdated(wgIPv4 net.IP) error {
-	if a.wireguardIPv4 != nil {
-		// TODO check a.wireguardIPv4 == wgIPv4
+func (a *Agent) UpdatePeer(wgIPv4 net.IP, pubKey string) error {
+	// Check self first due to annoying optimizations by @aanm
+
+	if node.GetWireguardIPv4() == nil {
+		// TODO maybe queue updates
 		return nil
 	}
 
-	a.wireguardIPv4 = wgIPv4
+	if !a.isInit && node.GetWireguardIPv4() != nil {
+		a.wireguardIPv4 = node.GetWireguardIPv4()
 
-	link := &netlink.Wireguard{LinkAttrs: netlink.LinkAttrs{Name: wgIfaceName}}
-	err := netlink.LinkAdd(link)
-	if err != nil && !errors.Is(err, unix.EEXIST) {
-		return err
+		link := &netlink.Wireguard{LinkAttrs: netlink.LinkAttrs{Name: wgIfaceName}}
+		err := netlink.LinkAdd(link)
+		if err != nil && !errors.Is(err, unix.EEXIST) {
+			return err
+		}
+
+		ip := &net.IPNet{
+			IP:   a.wireguardIPv4,
+			Mask: a.wireguardV4CIDR.Mask,
+		}
+
+		err = netlink.AddrAdd(link, &netlink.Addr{IPNet: ip})
+		if err != nil && !errors.Is(err, unix.EEXIST) {
+			return err
+		}
+
+		cfg := &wgtypes.Config{
+			PrivateKey:   &a.privKey,
+			ListenPort:   &a.listenPort,
+			ReplacePeers: false,
+		}
+		if err := a.wgClient.ConfigureDevice(wgIfaceName, *cfg); err != nil {
+			return err
+		}
+
+		if err := netlink.LinkSetUp(link); err != nil {
+			return err
+		}
+
+		a.isInit = true
 	}
 
-	ip := &net.IPNet{
-		IP:   a.wireguardIPv4,
-		Mask: a.wireguardV4CIDR.Mask,
-	}
-
-	err = netlink.AddrAdd(link, &netlink.Addr{IPNet: ip})
-	if err != nil && !errors.Is(err, unix.EEXIST) {
-		return err
-	}
-
-	cfg := &wgtypes.Config{
-		PrivateKey:   &a.privKey,
-		ListenPort:   &a.listenPort,
-		ReplacePeers: false,
-	}
-	if err := a.wgClient.ConfigureDevice(wgIfaceName, *cfg); err != nil {
-		return err
-	}
-
-	if err := netlink.LinkSetUp(link); err != nil {
-		return err
-	}
+	// TODO continue from here with remote peer update
 
 	return nil
 }

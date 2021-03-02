@@ -57,6 +57,8 @@ var (
 	k8sNodeIP net.IP
 
 	ipsecKeyIdentity uint8
+
+	wireguardIPv4 net.IP
 )
 
 type RouterInfo interface {
@@ -564,6 +566,14 @@ func GetK8sNodeIP() net.IP {
 // SetK8sNodeIP sets k8s Node IP addr.
 func SetK8sNodeIP(ip net.IP) {
 	k8sNodeIP = ip
+}
+
+func SetWireguardIPv4(ip net.IP) {
+	wireguardIPv4 = ip
+}
+
+func GetWireguardIPv4() net.IP {
+	return wireguardIPv4
 }
 
 func copyStringToNetIPMap(in map[string]net.IP) map[string]net.IP {
