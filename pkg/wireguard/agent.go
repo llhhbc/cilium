@@ -16,7 +16,6 @@ import (
 )
 
 // TODO items:
-// - 1. fix operator so that it allocates the existing IP addr
 // - 2. read local peers and avoid overriding them
 // - 3. implement DeletePeer method
 // - 4. patch routes

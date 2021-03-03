@@ -45,16 +45,12 @@ func (m *Manager) AddNode(n *v2.CiliumNode) error {
 	m.Lock()
 	defer m.Unlock()
 
-	fmt.Println("LOL AddNode", n)
-
 	return m.allocateIP(n, false)
 }
 
 func (m *Manager) UpdateNode(n *v2.CiliumNode) error {
 	m.Lock()
 	defer m.Unlock()
-
-	fmt.Println("LOL UpdateNode", n)
 
 	return m.allocateIP(n, true)
 }
@@ -63,10 +59,8 @@ func (m *Manager) DeleteNode(n *v2.CiliumNode) {
 	m.Lock()
 	defer m.Unlock()
 
-	fmt.Println("LOL DeleteNode", n)
-
 	if m.restoring {
-		panic("INVALID STATE")
+		panic("INVALID STATE") // TODO log err
 	}
 
 	found := false
@@ -120,6 +114,8 @@ func (m *Manager) allocateIP(n *v2.CiliumNode, isUpdate bool) error {
 			}
 		}
 	}
+
+	fmt.Println("!!! found", found, ip)
 
 	if !found {
 		if m.restoring {

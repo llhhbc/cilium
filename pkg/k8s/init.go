@@ -126,8 +126,6 @@ func retrieveNodeInformation(nodeName string) (*nodeTypes.Node, error) {
 	if option.Config.EnableWireguard {
 		if ip := n.GetIPByType(addressing.NodeWireguardIP, false); ip == nil {
 			return nil, fmt.Errorf("wireguard IPv4 not available")
-		} else {
-			fmt.Println("!!! BINGO", ip)
 		}
 	}
 
