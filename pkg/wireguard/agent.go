@@ -15,6 +15,12 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
+// TODO items:
+// - 1. fix operator so that it allocates the existing IP addr
+// - 2. read local peers and avoid overriding them
+// - 3. implement DeletePeer method
+// - 4. patch routes
+
 const (
 	wgIfaceName      = "wg0"                          // TODO make config param
 	PubKeyAnnotation = "io.cilium.network.wg-pub-key" // TODO use consts from other pkg
@@ -106,7 +112,7 @@ func (a *Agent) UpdatePeer(wgIPv4 net.IP, pubKey string) error {
 		a.isInit = true
 	}
 
-	// TODO continue from here with remote peer update
+	// TODO continue from here with remote peer update <---
 
 	return nil
 }
