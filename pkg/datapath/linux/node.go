@@ -907,9 +907,11 @@ func (n *linuxNodeHandler) nodeUpdate(oldNode, newNode *nodeTypes.Node, firstAdd
 		n.encryptNode(newNode)
 	}
 
+	var wgIPv4 net.IP
 	if option.Config.EnableWireguard {
-		wgIPv4 := newNode.GetIPByType(addressing.NodeWireguardIP, false)
-		if err := n.wgAgent.UpdatePeer(wgIPv4, ""); err != nil {
+		wgIPv4 = newNode.GetIPByType(addressing.NodeWireguardIP, false)
+		err := n.wgAgent.UpdatePeer(wgIPv4, newIP4, newNode.WireguardPubKey, newNode.IPv4AllocCIDR.IPNet, newNode.IsLocal())
+		if err != nil {
 			return err // TODO who checks this?
 		}
 	}
@@ -930,7 +932,13 @@ func (n *linuxNodeHandler) nodeUpdate(oldNode, newNode *nodeTypes.Node, firstAdd
 	// TODO move it here
 
 	if n.nodeConfig.EnableAutoDirectRouting {
-		n.updateDirectRoute(oldIP4Cidr, newNode.IPv4AllocCIDR, oldIP4, newIP4, firstAddition, n.nodeConfig.EnableIPv4)
+		nextHopIPv4 := newIP4
+		oldNextHopIPv4 := oldIP4
+		if option.Config.EnableWireguard && wgIPv4 != nil && !isLocalNode {
+			nextHopIPv4 = wgIPv4
+			oldNextHopIPv4 = newIP4
+		}
+		n.updateDirectRoute(oldIP4Cidr, newNode.IPv4AllocCIDR, oldNextHopIPv4, nextHopIPv4, firstAddition, n.nodeConfig.EnableIPv4)
 		n.updateDirectRoute(oldIP6Cidr, newNode.IPv6AllocCIDR, oldIP6, newIP6, firstAddition, n.nodeConfig.EnableIPv6)
 		return nil
 	}

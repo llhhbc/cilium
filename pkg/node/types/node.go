@@ -28,6 +28,7 @@ import (
 	"github.com/cilium/cilium/pkg/node/addressing"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/source"
+	"github.com/cilium/cilium/pkg/wireguard"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -47,13 +48,14 @@ func (nn Identity) String() string {
 // instance. Invalid IP and CIDRs are silently ignored
 func ParseCiliumNode(n *ciliumv2.CiliumNode) (node Node) {
 	node = Node{
-		Name:          n.Name,
-		EncryptionKey: uint8(n.Spec.Encryption.Key),
-		Cluster:       option.Config.ClusterName,
-		ClusterID:     option.Config.ClusterID,
-		Source:        source.CustomResource,
-		Labels:        n.ObjectMeta.Labels,
-		NodeIdentity:  uint32(n.Spec.NodeIdentity),
+		Name:            n.Name,
+		EncryptionKey:   uint8(n.Spec.Encryption.Key),
+		Cluster:         option.Config.ClusterName,
+		ClusterID:       option.Config.ClusterID,
+		Source:          source.CustomResource,
+		Labels:          n.ObjectMeta.Labels,
+		NodeIdentity:    uint32(n.Spec.NodeIdentity),
+		WireguardPubKey: n.ObjectMeta.Annotations[wireguard.PubKeyAnnotation],
 	}
 
 	for _, cidrString := range n.Spec.IPAM.PodCIDRs {
