@@ -1459,7 +1459,8 @@ func runDaemon() {
 	ctx, cancel := context.WithCancel(server.ServerCtx)
 	d, restoredEndpoints, err := NewDaemon(ctx, cancel,
 		WithDefaultEndpointManager(ctx, endpoint.CheckHealth),
-		linuxdatapath.NewDatapath(datapathConfig, iptablesManager, wgAgent))
+		linuxdatapath.NewDatapath(datapathConfig, iptablesManager, wgAgent),
+		wgAgent)
 	if err != nil {
 		select {
 		case <-server.ServerCtx.Done():

@@ -69,49 +69,50 @@ func (a *Agent) Close() error {
 	return a.wgClient.Close()
 }
 
-func (a *Agent) UpdatePeer(wgIPv4, nodeIPv4 net.IP, pubKeyHex string, podCIDRv4 *net.IPNet, isLocal bool) error {
+func (a *Agent) Init() error {
+	// TODO check if it exists
 	if node.GetWireguardIPv4() == nil {
-		// TODO maybe queue updates
-		return nil
+		return fmt.Errorf("Failed to retrieve wireguard IPv4")
 	}
 
-	if !a.isInit && node.GetWireguardIPv4() != nil {
-		a.wireguardIPv4 = node.GetWireguardIPv4()
+	a.wireguardIPv4 = node.GetWireguardIPv4()
 
-		link := &netlink.Wireguard{LinkAttrs: netlink.LinkAttrs{Name: wgIfaceName}}
-		err := netlink.LinkAdd(link)
-		if err != nil && !errors.Is(err, unix.EEXIST) {
-			return err
-		}
-
-		ip := &net.IPNet{
-			IP:   a.wireguardIPv4,
-			Mask: a.wireguardV4CIDR.Mask,
-		}
-
-		err = netlink.AddrAdd(link, &netlink.Addr{IPNet: ip})
-		if err != nil && !errors.Is(err, unix.EEXIST) {
-			return err
-		}
-
-		cfg := &wgtypes.Config{
-			PrivateKey:   &a.privKey,
-			ListenPort:   &a.listenPort,
-			ReplacePeers: false,
-		}
-		if err := a.wgClient.ConfigureDevice(wgIfaceName, *cfg); err != nil {
-			return err
-		}
-
-		if err := netlink.LinkSetUp(link); err != nil {
-			return err
-		}
-
-		a.isInit = true
+	link := &netlink.Wireguard{LinkAttrs: netlink.LinkAttrs{Name: wgIfaceName}}
+	err := netlink.LinkAdd(link)
+	if err != nil && !errors.Is(err, unix.EEXIST) {
+		return err
 	}
 
+	ip := &net.IPNet{
+		IP:   a.wireguardIPv4,
+		Mask: a.wireguardV4CIDR.Mask,
+	}
+
+	err = netlink.AddrAdd(link, &netlink.Addr{IPNet: ip})
+	if err != nil && !errors.Is(err, unix.EEXIST) {
+		return err
+	}
+
+	cfg := &wgtypes.Config{
+		PrivateKey:   &a.privKey,
+		ListenPort:   &a.listenPort,
+		ReplacePeers: false,
+	}
+	if err := a.wgClient.ConfigureDevice(wgIfaceName, *cfg); err != nil {
+		return err
+	}
+
+	if err := netlink.LinkSetUp(link); err != nil {
+		return err
+	}
+
+	a.isInit = true
+	return nil
+}
+
+func (a *Agent) UpdatePeer(wgIPv4, nodeIPv4 net.IP, pubKeyHex string, podCIDRv4 *net.IPNet, isLocal bool) error {
 	if !a.isInit {
-		fmt.Println("TODO need to queue the event")
+		fmt.Println("!!! TODO need to queue the event")
 	}
 
 	if isLocal {

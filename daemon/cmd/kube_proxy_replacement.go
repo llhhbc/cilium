@@ -339,6 +339,10 @@ func initKubeProxyReplacementOptions() (strict bool) {
 
 // handleNativeDevices tries to detect bpf_host devices (if needed).
 func handleNativeDevices(strict bool) {
+	if option.Config.EnableWireguard {
+		option.Config.DirectRoutingDevice = "wg0" // TODO opt
+	}
+
 	detectNodePortDevs := len(option.Config.Devices) == 0 &&
 		(option.Config.EnableNodePort || option.Config.EnableHostFirewall || option.Config.EnableBandwidthManager)
 	detectDirectRoutingDev := option.Config.EnableNodePort &&
