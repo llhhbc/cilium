@@ -112,7 +112,7 @@ func (a *Agent) Init() error {
 
 func (a *Agent) UpdatePeer(wgIPv4, nodeIPv4 net.IP, pubKeyHex string, podCIDRv4 *net.IPNet, isLocal bool) error {
 	if !a.isInit {
-		fmt.Println("!!! TODO need to queue the event")
+		panic("!!! TODO need to queue the event (probably not needed)")
 	}
 
 	if isLocal {

@@ -272,6 +272,9 @@ func (n *linuxNodeHandler) updateDirectRoute(oldCIDR, newCIDR *cidr.CIDR, oldIP,
 	// Node allocation CIDR has changed
 	case oldCIDR != nil && newCIDR != nil && !oldCIDR.Equal(newCIDR):
 		n.deleteDirectRoute(oldCIDR, oldIP)
+		//if option.Config.EnableWireguard {
+		//	n.deleteDirectRoute(oldCIDR, newIP) // newIP is wireguard IP
+		//}
 	}
 
 	return nil
@@ -934,10 +937,15 @@ func (n *linuxNodeHandler) nodeUpdate(oldNode, newNode *nodeTypes.Node, firstAdd
 	if n.nodeConfig.EnableAutoDirectRouting {
 		nextHopIPv4 := newIP4
 		oldNextHopIPv4 := oldIP4
+		oldWgIPv4 := oldNode.GetIPByType(addressing.NodeWireguardIP, false)
+
 		if option.Config.EnableWireguard && wgIPv4 != nil && !isLocalNode {
 			nextHopIPv4 = wgIPv4
-			oldNextHopIPv4 = newIP4
+			if oldWgIPv4 != nil {
+				oldNextHopIPv4 = oldWgIPv4
+			}
 		}
+
 		n.updateDirectRoute(oldIP4Cidr, newNode.IPv4AllocCIDR, oldNextHopIPv4, nextHopIPv4, firstAddition, n.nodeConfig.EnableIPv4)
 		n.updateDirectRoute(oldIP6Cidr, newNode.IPv6AllocCIDR, oldIP6, newIP6, firstAddition, n.nodeConfig.EnableIPv6)
 		return nil
