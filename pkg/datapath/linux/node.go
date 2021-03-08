@@ -937,7 +937,10 @@ func (n *linuxNodeHandler) nodeUpdate(oldNode, newNode *nodeTypes.Node, firstAdd
 	if n.nodeConfig.EnableAutoDirectRouting {
 		nextHopIPv4 := newIP4
 		oldNextHopIPv4 := oldIP4
-		oldWgIPv4 := oldNode.GetIPByType(addressing.NodeWireguardIP, false)
+		var oldWgIPv4 net.IP
+		if oldNode != nil {
+			oldWgIPv4 = oldNode.GetIPByType(addressing.NodeWireguardIP, false)
+		}
 
 		if option.Config.EnableWireguard && wgIPv4 != nil && !isLocalNode {
 			nextHopIPv4 = wgIPv4

@@ -17,6 +17,7 @@ import (
 )
 
 // TODO items:
+// - 1. Change pod CIDRs, no new route is added immediately
 // - 4. patch routes
 // - 1. avoid updating config if it hasn't changed
 // - 2. read local peers and avoid overriding them
@@ -147,7 +148,7 @@ func (a *Agent) UpdatePeer(wgIPv4, nodeIPv4 net.IP, pubKeyHex string, podCIDRv4 
 		PublicKey:  pubKey,
 		AllowedIPs: allowedIPs,
 	}
-	cfg := &wgtypes.Config{Peers: []wgtypes.PeerConfig{peerConfig}}
+	cfg := &wgtypes.Config{ReplacePeers: true, Peers: []wgtypes.PeerConfig{peerConfig}}
 	if err := a.wgClient.ConfigureDevice(wgIfaceName, *cfg); err != nil {
 		return err
 	}
