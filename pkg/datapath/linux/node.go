@@ -668,7 +668,7 @@ func (n *linuxNodeHandler) insertNeighbor(ctx context.Context, newNode *nodeType
 
 	srcIPv4, nextHopIPv4, err := n.getSrcAndNextHopIPv4(nextHopIPv4, ifaceName)
 	if err != nil {
-		scopedLog.WithError(err).Error("Failed to determine source and nexthop IP addr")
+		scopedLog.WithError(err).Info("Failed to determine source and nexthop IP addr")
 		return
 	}
 
@@ -695,7 +695,7 @@ func (n *linuxNodeHandler) insertNeighbor(ctx context.Context, newNode *nodeType
 						logfields.IPAddr:       neigh.IP,
 						logfields.HardwareAddr: neigh.HardwareAddr,
 						logfields.LinkIndex:    neigh.LinkIndex,
-					}).WithError(err).Warn("Failed to remove neighbor entry")
+					}).WithError(err).Info("Failed to remove neighbor entry")
 				}
 				delete(n.neighByNextHop, nextHopStr)
 				if option.Config.NodePortHairpin {
@@ -716,14 +716,14 @@ func (n *linuxNodeHandler) insertNeighbor(ctx context.Context, newNode *nodeType
 	if nextHopIsNew || refresh {
 		linkAttr, err := netlink.LinkByName(ifaceName)
 		if err != nil {
-			scopedLog.WithError(err).Error("Failed to retrieve iface by name (netlink)")
+			scopedLog.WithError(err).Info("Failed to retrieve iface by name (netlink)")
 			return
 		}
 		link := linkAttr.Attrs().Index
 
 		hwAddr, err := arp.PingOverLink(linkAttr, srcIPv4, nextHopIPv4)
 		if err != nil {
-			scopedLog.WithError(err).Error("arping failed")
+			scopedLog.WithError(err).Info("arping failed")
 			metrics.ArpingRequestsTotal.WithLabelValues(failed).Inc()
 			return
 		}
@@ -760,7 +760,7 @@ func (n *linuxNodeHandler) insertNeighbor(ctx context.Context, newNode *nodeType
 		default:
 		}
 		if err := netlink.NeighSet(&neigh); err != nil {
-			scopedLog.WithError(err).Error("Failed to insert neighbor")
+			scopedLog.WithError(err).Info("Failed to insert neighbor")
 			return
 		}
 		n.neighByNextHop[nextHopStr] = &neigh
@@ -795,7 +795,7 @@ func (n *linuxNodeHandler) deleteNeighbor(oldNode *nodeTypes.Node) {
 					logfields.IPAddr:       neigh.IP,
 					logfields.HardwareAddr: neigh.HardwareAddr,
 					logfields.LinkIndex:    neigh.LinkIndex,
-				}).WithError(err).Warn("Failed to remove neighbor entry")
+				}).WithError(err).Info("Failed to remove neighbor entry")
 				return
 			}
 
