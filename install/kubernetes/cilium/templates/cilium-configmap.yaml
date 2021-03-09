@@ -436,6 +436,7 @@ data:
 
   enable-xt-socket-fallback: {{ .Values.enableXTSocketFallback | quote }}
   install-iptables-rules: {{ .Values.installIptablesRules | quote }}
+  install-no-conntrack-iptables-rules: {{ .Values.installNoConntrackIptablesRules | quote }}
 
 {{- if hasKey .Values "iptablesRandomFully" }}
   iptables-random-fully: {{ .Values.iptablesRandomFully | quote }}
