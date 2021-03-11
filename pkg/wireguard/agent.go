@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/cilium/cilium/pkg/cidr"
 	"github.com/cilium/cilium/pkg/node"
 
 	"github.com/vishvananda/netlink"
@@ -90,6 +91,19 @@ func (a *Agent) Init() error {
 	ip := &net.IPNet{
 		IP:   a.wireguardIPv4,
 		Mask: a.wireguardV4CIDR.Mask,
+	}
+
+	// Removes stale IP addresses from wg device
+	addrs, err := netlink.AddrList(link, netlink.FAMILY_V4)
+	if err != nil {
+		return err
+	}
+	for _, addr := range addrs {
+		if !cidr.NewCIDR(addr.IPNet).Equal(cidr.NewCIDR(ip)) {
+			if err := netlink.AddrDel(link, &addr); err != nil {
+				return fmt.Errorf("failed to remove stale wg ip: %w", err)
+			}
+		}
 	}
 
 	err = netlink.AddrAdd(link, &netlink.Addr{IPNet: ip})

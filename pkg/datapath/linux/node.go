@@ -232,6 +232,7 @@ func installDirectRoute(CIDR *cidr.CIDR, nodeIP net.IP) (routeSpec *netlink.Rout
 		return
 	}
 
+	fmt.Printf("F!!!!!! Installing direct route: %s\n", routeSpec.String())
 	err = netlink.RouteReplace(routeSpec)
 	return
 }
@@ -302,6 +303,7 @@ func (n *linuxNodeHandler) deleteDirectRoute(CIDR *cidr.CIDR, nodeIP net.IP) {
 	}
 
 	for _, rt := range routes {
+		fmt.Printf("F!!!!!! Deleting route: %s\n", rt.String())
 		if err := netlink.RouteDel(&rt); err != nil {
 			log.WithError(err).Warningf("Unable to delete direct node route %s", rt.String())
 		}
@@ -912,6 +914,7 @@ func (n *linuxNodeHandler) nodeUpdate(oldNode, newNode *nodeTypes.Node, firstAdd
 
 	var wgIPv4 net.IP
 	if option.Config.EnableWireguard {
+		fmt.Printf("!!!!! Calling update peer with %+v\n", newNode)
 		wgIPv4 = newNode.GetIPByType(addressing.NodeWireguardIP, false)
 		err := n.wgAgent.UpdatePeer(newNode.Name, wgIPv4, newIP4, newNode.WireguardPubKey, newNode.IPv4AllocCIDR.IPNet, newNode.IsLocal())
 		if err != nil {
@@ -935,6 +938,8 @@ func (n *linuxNodeHandler) nodeUpdate(oldNode, newNode *nodeTypes.Node, firstAdd
 	// TODO move it here
 
 	if n.nodeConfig.EnableAutoDirectRouting {
+		fmt.Printf("R!!!!! Updating direct routes new: %+v old: %+v\n", newNode, oldNode)
+
 		nextHopIPv4 := newIP4
 		oldNextHopIPv4 := oldIP4
 		var oldWgIPv4 net.IP
@@ -948,6 +953,8 @@ func (n *linuxNodeHandler) nodeUpdate(oldNode, newNode *nodeTypes.Node, firstAdd
 				oldNextHopIPv4 = oldWgIPv4
 			}
 		}
+
+		fmt.Println("R!!!!! Hops for updateDirectRoute", oldIP4Cidr, newNode.IPv4AllocCIDR, oldNextHopIPv4, nextHopIPv4, firstAddition, n.nodeConfig.EnableIPv4)
 
 		n.updateDirectRoute(oldIP4Cidr, newNode.IPv4AllocCIDR, oldNextHopIPv4, nextHopIPv4, firstAddition, n.nodeConfig.EnableIPv4)
 		n.updateDirectRoute(oldIP6Cidr, newNode.IPv6AllocCIDR, oldIP6, newIP6, firstAddition, n.nodeConfig.EnableIPv6)
