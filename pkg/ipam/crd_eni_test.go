@@ -19,8 +19,10 @@ package ipam
 import (
 	eniTypes "github.com/cilium/cilium/pkg/aws/eni/types"
 	"github.com/cilium/cilium/pkg/checker"
+	"github.com/cilium/cilium/pkg/datapath/linux/route"
 	ipamTypes "github.com/cilium/cilium/pkg/ipam/types"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	"github.com/vishvananda/netlink"
 
 	"gopkg.in/check.v1"
 )
@@ -218,3 +220,19 @@ func (s *IPAMSuite) TestCiliumNodeENIRulesAndRoutes(c *check.C) {
 }
 
 func newInt(i int) *int { return &i }
+
+func routeStrings(routes []*netlink.Route) []string {
+	result := make([]string, 0, len(routes))
+	for _, route := range routes {
+		result = append(result, route.String())
+	}
+	return result
+}
+
+func ruleStrings(rules []*route.Rule) []string {
+	result := make([]string, 0, len(rules))
+	for _, rule := range rules {
+		result = append(result, rule.String())
+	}
+	return result
+}

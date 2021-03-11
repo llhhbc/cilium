@@ -23,7 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cilium/cilium/pkg/datapath/linux/linux_defaults"
 	"github.com/cilium/cilium/pkg/datapath/linux/route"
 	linuxrouting "github.com/cilium/cilium/pkg/datapath/linux/routing"
 	"github.com/cilium/cilium/pkg/mac"
@@ -322,117 +321,6 @@ func updateENIRulesAndRoutes(oldNode, newNode *ciliumv2.CiliumNode) error {
 	}
 
 	return nil
-}
-
-// nodeRulesAndRoutes returns the rules and routes required to configure node.
-// It is based on pkg/datapath/linux/routing.Configure.
-func nodeRulesAndRoutes(node *nodeTypes.Node, macToIfIndex map[string]int) (rules []*route.Rule, routes []*netlink.Route) {
-	if node == nil {
-		return nil, nil
-	}
-
-	nodeIPv4Nets, nodeIPv6Nets := ip.CoalesceCIDRs(nodeIPNets(node))
-	_ = nodeIPv6Nets // Ignore IPv6 nets for now.
-
-	for _, iface := range node.Interfaces {
-		ifIndex, ok := macToIfIndex[iface.MAC.String()]
-		if !ok {
-			log.WithField("iface", iface).Warning("failed to retrieve interface index")
-			continue
-		}
-
-		var egressPriority, tableID int
-		if option.Config.EgressMultiHomeIPRuleCompat {
-			egressPriority = linux_defaults.RulePriorityEgress
-			tableID = ifIndex
-		} else {
-			egressPriority = linux_defaults.RulePriorityEgressv2
-			// RoutingInfo.Configure is also using the ENI index here
-			tableID = linuxrouting.ComputeTableIDFromIfaceNumber(iface.Index)
-		}
-
-		for _, endpointAddress := range iface.EndpointAddresses {
-			ipWithMask := net.IPNet{
-				IP:   endpointAddress,
-				Mask: net.CIDRMask(32, 32),
-			}
-
-			// On ingress, route all traffic to the endpoint IP via the main
-			// routing table. Egress rules are created in a per-ENI routing
-			// table.
-			ingressRule := &route.Rule{
-				Priority: linux_defaults.RulePriorityIngress,
-				To:       &ipWithMask,
-				Table:    route.MainTable,
-			}
-			rules = append(rules, ingressRule)
-
-			if option.Config.EnableIPv4Masquerade {
-				// Lookup a VPC specific table for all traffic from an endpoint
-				// to the CIDR configured for the VPC on which the endpoint has
-				// the IP on.
-				egressRules := make([]*route.Rule, 0, len(nodeIPv4Nets))
-				for _, ipNet := range nodeIPv4Nets {
-					egressRule := &route.Rule{
-						Priority: egressPriority,
-						From:     &ipWithMask,
-						To:       ipNet,
-						Table:    tableID,
-					}
-					egressRules = append(egressRules, egressRule)
-				}
-				rules = append(rules, egressRules...)
-			} else {
-				// Lookup a VPC specific table for all traffic from an endpoint.
-				egressRule := &route.Rule{
-					Priority: egressPriority,
-					From:     &ipWithMask,
-					Table:    tableID,
-				}
-				rules = append(rules, egressRule)
-			}
-		}
-
-		// Nexthop route to the VPC or subnet gateway.
-		//
-		// Note: This is a /32 route to avoid any L2. The endpoint does no L2
-		// either.
-		nexthopRoute := &netlink.Route{
-			LinkIndex: ifIndex,
-			Dst: &net.IPNet{
-				IP:   iface.Gateway.IP,
-				Mask: net.CIDRMask(32, 32),
-			},
-			Scope: netlink.SCOPE_LINK,
-			Table: tableID,
-		}
-		routes = append(routes, nexthopRoute)
-
-		// Default route to the VPC or subnet gateway.
-		defaultRoute := &netlink.Route{
-			Dst: &net.IPNet{
-				IP:   net.IPv4zero,
-				Mask: net.CIDRMask(0, 32),
-			},
-			Table: tableID,
-			Gw:    iface.Gateway.IP,
-		}
-		routes = append(routes, defaultRoute)
-	}
-
-	return
-}
-
-// nodeIPNets returns all natively routed CIDRs for node.
-func nodeIPNets(node *nodeTypes.Node) []*net.IPNet {
-	var ipNets []*net.IPNet
-	if ipv4NativeRoutingCIDR := option.Config.IPv4NativeRoutingCIDR(); ipv4NativeRoutingCIDR != nil && ipv4NativeRoutingCIDR.IPNet != nil {
-		ipNets = append(ipNets, ipv4NativeRoutingCIDR.IPNet)
-	}
-	for _, ipv4NativeRoutingCIDR := range node.IPv4NativeRoutingCIDRs {
-		ipNets = append(ipNets, ipv4NativeRoutingCIDR.IPNet)
-	}
-	return ipNets
 }
 
 func diffResources(old, new *ciliumv2.CiliumNode) (added, removed []string) {
