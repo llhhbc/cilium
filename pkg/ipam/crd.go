@@ -26,6 +26,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/linux/linux_defaults"
 	"github.com/cilium/cilium/pkg/datapath/linux/route"
 	linuxrouting "github.com/cilium/cilium/pkg/datapath/linux/routing"
+	"github.com/cilium/cilium/pkg/mac"
 	"github.com/vishvananda/netlink"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -224,35 +225,39 @@ func deriveVpcCIDR(node *ciliumv2.CiliumNode) (result *cidr.CIDR) {
 	return
 }
 
-func updateENIRulesAndRoutes(oldNode, newNode *nodeTypes.Node) error {
-	var oldInterfaces []nodeTypes.Interface
-	if oldNode != nil {
-		oldInterfaces = oldNode.Interfaces
-	}
-
+func updateENIRulesAndRoutes(oldNode, newNode *ciliumv2.CiliumNode) error {
 	log.WithField("old", oldNode).WithField("new", newNode).Info("!!! updateENIRulesAndRoutes")
 
-	addedInterfaces, removedInterfaces := diffInterfaces(oldInterfaces, newNode.Interfaces)
+	addedResources, removedResources := diffResources(oldNode, newNode)
 
 	// Configure new interfaces.
-	macToIfIndex := map[string]int{} // FIXME move this to nodeRulesAndRoutes?
-	for _, addedInterface := range newNode.Interfaces {
+	macToNetlinkInterfaceIndex := map[string]int{} // FIXME move this to nodeRulesAndRoutes?
+	for _, addedResource := range addedResources {
+		eni := newNode.Status.ENI.ENIs[addedResource]
+		mac, err := mac.ParseMAC(eni.MAC)
+		if err != nil {
+			log.WithError(err).WithField(logfields.MACAddr, eni.MAC).Error("unable to parse MAC address")
+			continue
+		}
 		// mtu := n.nodeConfig.MtuConfig.GetDeviceMTU()
 		mtu := 1500 // FIXME pass in real MTU
-		ifIdx, err := linuxrouting.RetrieveIfIndexFromMAC(addedInterface.MAC, mtu)
+		netlinkInterfaceIndex, err := linuxrouting.RetrieveIfIndexFromMAC(mac, mtu)
 		if err != nil {
-			log.WithError(err).Errorf("Unable to configure interface index %d mac %s", addedInterface.Index, addedInterface.MAC)
+			log.WithError(err).WithField(logfields.Interface, eni.Number).Error("unable to configure interface")
 		} else {
-			macToIfIndex[addedInterface.MAC.String()] = ifIdx
+			macToNetlinkInterfaceIndex[eni.MAC] = netlinkInterfaceIndex
 		}
 	}
 
 	// Ignore removed interfaces for now.
-	_ = removedInterfaces
-	_ = addedInterfaces
+	_ = removedResources
 
-	oldRules, oldRoutes := nodeRulesAndRoutes(oldNode, macToIfIndex)
-	newRules, newRoutes := nodeRulesAndRoutes(newNode, macToIfIndex)
+	options := ciliumNodeENIRulesAndRoutesOptions{
+		EgressMultiHomeIPRuleCompat: option.Config.EgressMultiHomeIPRuleCompat,
+		EnableIPv4Masquerade:        option.Config.EnableIPv4Masquerade,
+	}
+	oldRules, oldRoutes := ciliumNodeENIRulesAndRoutes(oldNode, macToNetlinkInterfaceIndex, options)
+	newRules, newRoutes := ciliumNodeENIRulesAndRoutes(newNode, macToNetlinkInterfaceIndex, options)
 	addedRules, removedRules := diffRules(oldRules, newRules)
 	addedRoutes, removedRoutes := diffRoutes(oldRoutes, newRoutes)
 
@@ -273,28 +278,28 @@ func updateENIRulesAndRoutes(oldNode, newNode *nodeTypes.Node) error {
 	for retry := 0; retry < maxRetries; retry++ {
 		for _, rule := range rulesToAdd {
 			if err := route.ReplaceRule(*rule); err != nil {
-				log.WithError(err).Errorf("add rule %s failed", rule)
+				log.WithError(err).WithField(logfields.Rule, rule).Errorf("add rule failed")
 				failedAddRules = append(failedAddRules, rule)
 			}
 		}
 
 		for _, rule := range rulesToRemove {
 			if err := route.DeleteRule(*rule); err != nil {
-				log.WithError(err).Errorf("delete rule %s failed", rule)
+				log.WithError(err).WithField(logfields.Rule, rule).Errorf("delete rule failed")
 				failedRemoveRules = append(failedRemoveRules, rule)
 			}
 		}
 
 		for _, route := range routesToAdd {
 			if err := netlink.RouteReplace(route); err != nil {
-				log.WithError(err).Errorf("add L2 nexthop route %s failed", route)
+				log.WithError(err).WithField(logfields.Route, route).Errorf("add L2 nexthop route failed")
 				failedAddRoutes = append(failedAddRoutes, route)
 			}
 		}
 
 		for _, route := range routesToRemove {
 			if err := netlink.RouteDel(route); err != nil {
-				log.WithError(err).Errorf("remove L2 nexthop route %s failed", route)
+				log.WithError(err).WithField(logfields.Route, route).Errorf("remove L2 nexthop route failed")
 				failedRemoveRoutes = append(failedRemoveRoutes, route)
 			}
 		}
@@ -430,30 +435,20 @@ func nodeIPNets(node *nodeTypes.Node) []*net.IPNet {
 	return ipNets
 }
 
-func diffInterfaces(old, new []nodeTypes.Interface) (added, removed []*nodeTypes.Interface) {
-	newInterfaceSet := interfaceSet(new)
-	for _, oldInterface := range old {
-		if _, ok := newInterfaceSet[oldInterface.Index]; !ok {
-			removed = append(removed, &oldInterface)
+func diffResources(old, new *ciliumv2.CiliumNode) (added, removed []string) {
+	for newResource := range new.Status.ENI.ENIs {
+		if _, ok := old.Status.ENI.ENIs[newResource]; !ok {
+			added = append(added, newResource)
 		}
 	}
 
-	oldInterfaceSet := interfaceSet(old)
-	for _, newInterface := range new {
-		if _, ok := oldInterfaceSet[newInterface.Index]; !ok {
-			added = append(added, &newInterface)
+	for oldResource := range old.Status.ENI.ENIs {
+		if _, ok := new.Status.ENI.ENIs[oldResource]; !ok {
+			removed = append(removed, oldResource)
 		}
 	}
 
 	return
-}
-
-func interfaceSet(interfaces []nodeTypes.Interface) map[int]struct{} {
-	interfaceSet := make(map[int]struct{})
-	for _, iface := range interfaces {
-		interfaceSet[iface.Index] = struct{}{}
-	}
-	return interfaceSet
 }
 
 // diffRules returns a list of added and removed rules between old and new.
@@ -590,18 +585,7 @@ func (n *nodeStore) updateLocalNodeResource(node *ciliumv2.CiliumNode) {
 	defer n.mutex.Unlock()
 
 	if n.conf.IPAMMode() == ipamOption.IPAMENI {
-		// FIXME: no need to convert to nodeTypes.Node
-		var newNode, oldNode *nodeTypes.Node
-		if n.ownNode != nil {
-			n := nodeTypes.ParseCiliumNode(n.ownNode)
-			oldNode = &n
-		}
-		if node != nil {
-			n := nodeTypes.ParseCiliumNode(node)
-			newNode = &n
-		}
-
-		if err := updateENIRulesAndRoutes(oldNode, newNode); err != nil {
+		if err := updateENIRulesAndRoutes(n.ownNode, node); err != nil {
 			log.WithError(err).Errorf("Failed to update routes and rules for ENIs")
 		}
 	}
