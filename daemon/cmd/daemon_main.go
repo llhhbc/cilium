@@ -1500,6 +1500,11 @@ func runDaemon() {
 	}
 	bootstrapStats.k8sInit.End(true)
 	restoreComplete := d.initRestore(restoredEndpoints)
+	if wgAgent != nil {
+		if err := wgAgent.RestoreFinished(); err != nil {
+			log.WithError(err).Error("Failed to set up wireguard peers")
+		}
+	}
 
 	if !d.endpointManager.HostEndpointExists() {
 		log.Info("Creating host endpoint")

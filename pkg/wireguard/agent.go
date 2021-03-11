@@ -36,9 +36,11 @@ type Agent struct {
 	wireguardV4CIDR *net.IPNet
 	wireguardIPv4   net.IP
 
-	isInit bool
+	isInit          bool
+	finishedRestore bool
 
 	listenPort int
+	peers      map[string]wgtypes.PeerConfig
 }
 
 func NewAgent(privKey string, wgV4Net *net.IPNet) (*Agent, error) {
@@ -111,7 +113,12 @@ func (a *Agent) Init() error {
 	return nil
 }
 
-func (a *Agent) UpdatePeer(wgIPv4, nodeIPv4 net.IP, pubKeyHex string, podCIDRv4 *net.IPNet, isLocal bool) error {
+func (a *Agent) RestoreFinished() error {
+	a.finishedRestore = true
+	return a.syncPeers()
+}
+
+func (a *Agent) UpdatePeer(nodeName string, wgIPv4, nodeIPv4 net.IP, pubKeyHex string, podCIDRv4 *net.IPNet, isLocal bool) error {
 	if !a.isInit {
 		panic("!!! TODO need to queue the event (probably not needed)")
 	}
@@ -148,7 +155,23 @@ func (a *Agent) UpdatePeer(wgIPv4, nodeIPv4 net.IP, pubKeyHex string, podCIDRv4 
 		PublicKey:  pubKey,
 		AllowedIPs: allowedIPs,
 	}
-	cfg := &wgtypes.Config{ReplacePeers: true, Peers: []wgtypes.PeerConfig{peerConfig}}
+
+	a.peers[nodeName] = peerConfig
+
+	return a.syncPeers()
+}
+
+func (a *Agent) syncPeers() error {
+	if !a.finishedRestore {
+		return nil
+	}
+
+	peers := []wgtypes.PeerConfig{}
+	for _, peer := range a.peers {
+		peers = append(peers, peer)
+	}
+
+	cfg := &wgtypes.Config{ReplacePeers: true, Peers: peers}
 	if err := a.wgClient.ConfigureDevice(wgIfaceName, *cfg); err != nil {
 		return err
 	}
