@@ -64,6 +64,7 @@ func NewAgent(privKey string, wgV4Net *net.IPNet) (*Agent, error) {
 		wireguardV4CIDR: wgV4Net,
 
 		listenPort: listenPort, // TODO make configurable
+		peers:      map[string]wgtypes.PeerConfig{},
 	}, nil
 }
 
