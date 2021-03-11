@@ -71,6 +71,11 @@ func (s *IPAMSuite) TestNodeRulesAndRoutes(c *check.C) {
 		},
 	}
 
+	macToIfIndex := make(map[string]int)
+	for _, iface := range node.Interfaces {
+		macToIfIndex[iface.MAC.String()] = iface.Index
+	}
+
 	for _, tc := range []struct {
 		egressMultiHomeIPRuleCompat bool
 		enableIPv4Masquerade        bool
@@ -158,7 +163,7 @@ func (s *IPAMSuite) TestNodeRulesAndRoutes(c *check.C) {
 	} {
 		option.Config.EgressMultiHomeIPRuleCompat = tc.egressMultiHomeIPRuleCompat
 		option.Config.EnableIPv4Masquerade = tc.enableIPv4Masquerade
-		obtainedRules, obtainedRoutes := nodeRulesAndRoutes(node)
+		obtainedRules, obtainedRoutes := nodeRulesAndRoutes(node, macToIfIndex)
 		c.Assert(ruleStrings(obtainedRules), checker.DeepEquals, tc.expectedRuleStrings)
 		c.Assert(routeStrings(obtainedRoutes), checker.DeepEquals, tc.expectedRouteStrings)
 	}
