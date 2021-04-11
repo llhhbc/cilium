@@ -677,6 +677,7 @@ func (n *linuxNodeHandler) insertNeighbor(ctx context.Context, newNode *nodeType
 	if selfVpcZone == newVpcZone && nextNode.Annotations != nil &&
 		nextNode.Annotations[nodeTypes.VpcAnnotationInnerIP] != "" {
 		newNodeIP = net.ParseIP(nextNode.Annotations[nodeTypes.VpcAnnotationInnerIP]).To4()
+		log.Infof(" %s get same vpc zone, use inner ip %s. ", nextNode.Name, newNodeIP.String())
 	} else {
 		newNodeIP = newNode.GetNodeIP(false).To4()
 	}
@@ -694,6 +695,7 @@ func (n *linuxNodeHandler) insertNeighbor(ctx context.Context, newNode *nodeType
 		scopedLog.WithError(err).Error("Failed to determine source and nexthop IP addr")
 		return
 	}
+	scopedLog.Infof("get srcip %s, next ip %s. ", srcIPv4.String(), nextHopIPv4.String())
 
 	scopedLog = scopedLog.WithField(logfields.IPAddr, nextHopIPv4)
 
