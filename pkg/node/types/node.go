@@ -278,6 +278,9 @@ func (n *Node) GetK8sNodeIP() net.IP {
 	return externalIP
 }
 
+const VpcLabel = "vpc.zone.node"
+const VpcAnnotationInnerIP = "vpc.zone.inner.ip"
+
 // GetNodeIP returns one of the node's IP addresses available with the
 // following priority:
 // - NodeInternalIP
