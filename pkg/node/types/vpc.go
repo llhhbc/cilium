@@ -2,6 +2,7 @@ package types
 
 import (
 	"context"
+	"k8s.io/apimachinery/pkg/labels"
 	"net"
 	"os"
 	"time"
@@ -21,6 +22,7 @@ const VpcAnnotationOuterIP = "vpc.zone.outer.ip"
  */
 
 var nodeLister  v12.NodeLister
+var PodLister  v12.PodLister
 
 func init()  {
 
@@ -35,13 +37,31 @@ func init()  {
 	shardFactory := informers.NewSharedInformerFactoryWithOptions(clientSet, time.Hour)
 
 	nodeLister = shardFactory.Core().V1().Nodes().Lister()
+	PodLister = shardFactory.Core().V1().Pods().Lister()
 
 	go shardFactory.Start(context.Background().Done())
 
 	shardFactory.WaitForCacheSync(context.Background().Done())
 }
 
-func GetNodeVpcAddr(n *Node) net.IP {
+func GetNodeVpcConvert(srcIP string) net.IP  {
+	nodeList, err := nodeLister.List(labels.Everything())
+	if err != nil {
+		log.WithError(err).Errorln("get node list failed. ")
+		return nil
+	}
+	log.Debugf("get current node list %d. ", len(nodeList))
+	for _, n := range nodeList {
+		for _, ip := range n.Status.Addresses {
+			if ip.Address == srcIP {
+				return GetNodeVpcAddr(n.Name)
+			}
+		}
+	}
+	return nil
+}
+
+func GetNodeVpcAddr(nodeName string) net.IP {
 	if nodeLister == nil {
 		log.Warningf("node vpc lister is not init, skip. ")
 		return nil
@@ -53,9 +73,9 @@ func GetNodeVpcAddr(n *Node) net.IP {
 		log.WithError(err).Errorf("get self node %s info failed. ", GetName())
 		return nil
 	}
-	nextNode, err := nodeLister.Get(n.Name)
+	nextNode, err := nodeLister.Get(nodeName)
 	if err != nil {
-		log.WithError(err).Errorf("get new node %s info failed. ", n.Name)
+		log.WithError(err).Errorf("get new node %s info failed. ", nodeName)
 		return nil
 	}
 	if nextNode.Annotations == nil {

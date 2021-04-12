@@ -137,6 +137,8 @@ func (l *BPFListener) OnIPIdentityCacheChange(modType ipcache.CacheModification,
 		})
 	}
 
+	scopedLog.Infoln("my add for debug. ", modType, oldHostIP, newHostIP, oldID, newID, encryptKey, k8sMeta)
+
 	scopedLog.Debug("Daemon notified of IP-Identity cache state change")
 
 	l.notifyMonitor(modType, cidr, oldHostIP, newHostIP, oldID, newID, encryptKey, k8sMeta)

@@ -215,7 +215,7 @@ type Address struct {
 
 func (n *Node) getNodeIP(ipv6 bool) (net.IP, addressing.AddressType) {
 	if !ipv6 {
-		vpcIP := GetNodeVpcAddr(n)
+		vpcIP := GetNodeVpcAddr(n.Name)
 		if vpcIP != nil {
 			return vpcIP, addressing.NodeInternalIP
 		}
@@ -274,7 +274,7 @@ func (n *Node) GetExternalIP(ipv6 bool) net.IP {
 func (n *Node) GetK8sNodeIP() net.IP {
 	var externalIP net.IP
 
-	vpcIP := GetNodeVpcAddr(n)
+	vpcIP := GetNodeVpcAddr(n.Name)
 	if vpcIP != nil {
 		return vpcIP
 	}
@@ -387,7 +387,7 @@ func (n *Node) getHealthAddresses() *models.NodeAddressing {
 		v6Str = n.IPv6HealthIP.String()
 	}
 
-	vpcIP := GetNodeVpcAddr(n)
+	vpcIP := GetNodeVpcAddr(n.Name)
 	if vpcIP != nil {
 		v4Str = vpcIP.String()
 	}
