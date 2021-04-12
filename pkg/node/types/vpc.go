@@ -14,6 +14,7 @@ import (
 
 const VpcLabel = "vpc.zone.node"
 const VpcAnnotationInnerIP = "vpc.zone.inner.ip"
+const VpcAnnotationOuterIP = "vpc.zone.outer.ip"
 
 /*
 由于使用k8s包会导致cycle引入，所以这里简单实现一个k8s client go，只需要实现nodeLister
@@ -57,6 +58,9 @@ func GetNodeVpcAddr(n *Node) net.IP {
 		log.WithError(err).Errorf("get new node %s info failed. ", n.Name)
 		return nil
 	}
+	if nextNode.Annotations == nil {
+		return nil
+	}
 	selfVpcZone := ""
 	newVpcZone := ""
 	if selfNode.Labels != nil {
@@ -65,10 +69,14 @@ func GetNodeVpcAddr(n *Node) net.IP {
 	if nextNode.Labels != nil {
 		newVpcZone = nextNode.Labels[VpcLabel]
 	}
-	if selfVpcZone == newVpcZone && nextNode.Annotations != nil &&
-		nextNode.Annotations[VpcAnnotationInnerIP] != "" {
+	if selfVpcZone == newVpcZone && nextNode.Annotations[VpcAnnotationInnerIP] != "" {
 		newNodeIP = net.ParseIP(nextNode.Annotations[VpcAnnotationInnerIP]).To4()
 		log.Infof(" %s get same vpc zone, use inner ip %s. ", nextNode.Name, newNodeIP.String())
+		return newNodeIP
+	}
+	if selfVpcZone != newVpcZone && nextNode.Annotations[VpcAnnotationOuterIP] != "" {
+		newNodeIP = net.ParseIP(nextNode.Annotations[VpcAnnotationOuterIP]).To4()
+		log.Infof(" %s get diff vpc zone, use outer ip %s. ", nextNode.Name, newNodeIP.String())
 		return newNodeIP
 	}
 	return nil
