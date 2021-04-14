@@ -214,6 +214,13 @@ type Address struct {
 }
 
 func (n *Node) getNodeIP(ipv6 bool) (net.IP, addressing.AddressType) {
+	if !ipv6 {
+		vpcIP := GetNodeVpcAddr(n)
+		if vpcIP != nil {
+			return vpcIP, addressing.NodeInternalIP
+		}
+	}
+
 	var (
 		backupIP net.IP
 		ipType   addressing.AddressType
@@ -267,6 +274,11 @@ func (n *Node) GetExternalIP(ipv6 bool) net.IP {
 func (n *Node) GetK8sNodeIP() net.IP {
 	var externalIP net.IP
 
+	vpcIP := GetNodeVpcAddr(n)
+	if vpcIP != nil {
+		return vpcIP
+	}
+
 	for _, addr := range n.IPAddresses {
 		if addr.Type == addressing.NodeInternalIP {
 			return addr.IP
@@ -277,9 +289,6 @@ func (n *Node) GetK8sNodeIP() net.IP {
 
 	return externalIP
 }
-
-const VpcLabel = "vpc.zone.node"
-const VpcAnnotationInnerIP = "vpc.zone.inner.ip"
 
 // GetNodeIP returns one of the node's IP addresses available with the
 // following priority:
@@ -376,6 +385,11 @@ func (n *Node) getHealthAddresses() *models.NodeAddressing {
 	}
 	if n.IPv6HealthIP != nil {
 		v6Str = n.IPv6HealthIP.String()
+	}
+
+	vpcIP := GetNodeVpcAddr(n)
+	if vpcIP != nil {
+		v4Str = vpcIP.String()
 	}
 
 	return &models.NodeAddressing{

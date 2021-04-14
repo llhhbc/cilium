@@ -18,8 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/cilium/cilium/pkg/k8s"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net"
 	"os"
 
@@ -654,33 +652,7 @@ func (n *linuxNodeHandler) insertNeighbor(ctx context.Context, newNode *nodeType
 		return
 	}
 
-	// TODO add vpc lan
-	var newNodeIP net.IP
-	selfNode, err := k8s.Client().CoreV1().Nodes().Get(ctx, nodeTypes.GetName(), v1.GetOptions{})
-	if err != nil {
-		log.WithError(err).Errorf("get self node %s info failed. ", nodeTypes.GetName())
-		return
-	}
-	nextNode, err := k8s.Client().CoreV1().Nodes().Get(ctx, newNode.Name, v1.GetOptions{})
-	if err != nil {
-		log.WithError(err).Errorf("get new node %s info failed. ", newNode.Name)
-		return
-	}
-	selfVpcZone := ""
-	newVpcZone := ""
-	if selfNode.Labels != nil {
-		selfVpcZone = selfNode.Labels[nodeTypes.VpcLabel]
-	}
-	if nextNode.Labels != nil {
-		newVpcZone = nextNode.Labels[nodeTypes.VpcLabel]
-	}
-	if selfVpcZone == newVpcZone && nextNode.Annotations != nil &&
-		nextNode.Annotations[nodeTypes.VpcAnnotationInnerIP] != "" {
-		newNodeIP = net.ParseIP(nextNode.Annotations[nodeTypes.VpcAnnotationInnerIP]).To4()
-		log.Infof(" %s get same vpc zone, use inner ip %s. ", nextNode.Name, newNodeIP.String())
-	} else {
-		newNodeIP = newNode.GetNodeIP(false).To4()
-	}
+	newNodeIP := newNode.GetNodeIP(false).To4()
 	nextHopIPv4 := make(net.IP, len(newNodeIP))
 	copy(nextHopIPv4, newNodeIP)
 
