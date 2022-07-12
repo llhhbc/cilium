@@ -312,6 +312,15 @@ func (s *Service) UpsertService(params *lb.SVC) (bool, lb.ID, error) {
 	s.Lock()
 	defer s.Unlock()
 
+	// TODO: need modify every svc?
+	if params.Name == "kubernetes" && params.Namespace == "default" && !nodeTypes.IsMaster(nodeTypes.GetName()) {
+		for i, b := range params.Backends {
+			if val := nodeTypes.GetNodeVpcConvert(b.IP.String()); val != nil {
+				params.Backends[i].IP = val
+			}
+		}
+	}
+
 	scopedLog := log.WithFields(logrus.Fields{
 		logfields.ServiceIP: params.Frontend.L3n4Addr,
 		logfields.Backends:  params.Backends,

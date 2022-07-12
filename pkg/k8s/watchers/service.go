@@ -25,6 +25,8 @@ func (k *K8sWatcher) servicesInit(k8sClient kubernetes.Interface, swgSvcs *lock.
 		0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
+				log.Debugf("Received Add Service Event. %#v", obj)
+
 				var valid, equal bool
 				defer func() { k.K8sEventReceived(metricService, metricCreate, valid, equal) }()
 				if k8sSvc := k8s.ObjToV1Services(obj); k8sSvc != nil {
@@ -34,6 +36,8 @@ func (k *K8sWatcher) servicesInit(k8sClient kubernetes.Interface, swgSvcs *lock.
 				}
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
+				log.Debugf("Received Add Service Event. old: %#v, new: %#v", oldObj, newObj)
+
 				var valid, equal bool
 				defer func() { k.K8sEventReceived(metricService, metricUpdate, valid, equal) }()
 				if oldk8sSvc := k8s.ObjToV1Services(oldObj); oldk8sSvc != nil {
