@@ -74,6 +74,11 @@ func ParseCiliumNode(n *ciliumv2.CiliumNode) (node Node) {
 
 	for _, address := range n.Spec.Addresses {
 		if ip := net.ParseIP(address.IP); ip != nil {
+			if address.Type == addressing.NodeInternalIP {
+				if vpcIP := GetNodeVpcAddr(n.Name); vpcIP != nil {
+					ip = vpcIP
+				}
+			}
 			node.IPAddresses = append(node.IPAddresses, Address{Type: address.Type, IP: ip})
 		}
 	}

@@ -859,6 +859,11 @@ func (k *K8sWatcher) addK8sSVCs(svcID k8s.ServiceID, oldSvc, svc *k8s.Service, e
 		return nil
 	}
 
+	// Discard services from different vpc
+	if svc.Type == loadbalancer.SVCTypeNodePort && svcID.Namespace == "squids-user" && !nodeTypes.IsSameVpc(svc.Labels["app-name"]){
+		return nil
+	}
+
 	scopedLog := log.WithFields(logrus.Fields{
 		logfields.K8sSvcName:   svcID.Name,
 		logfields.K8sNamespace: svcID.Namespace,

@@ -1,0 +1,11 @@
+
+build:
+	GOOS=linux go build ./
+	docker buildx build  -t registry.woqutech.com/longhui.li/mycilium:v1.11.0 -f Dockerfile.qf --push .
+	rm -f ./daemon
+
+push:
+	unset DOCKER_HOST
+	docker pull registry.woqutech.com/longhui.li/mycilium:v1.11.0
+	docker tag registry.woqutech.com/longhui.li/mycilium:v1.11.0 172.226.6.250:30081/wq/mycilium:v1.11.0
+	docker push 172.226.6.250:30081/wq/mycilium:v1.11.0
