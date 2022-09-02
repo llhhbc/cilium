@@ -16,7 +16,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.5.0
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.3.0
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.9.0
-	github.com/aws/smithy-go v1.6.0
+	github.com/aws/smithy-go v1.13.2
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cilium/customvet v0.0.0-20201209211516-9852765c1ac4
 	github.com/cilium/deepequal-gen v0.0.0-20200406125435-ad6a9003139e
@@ -41,7 +41,7 @@ require (
 	github.com/go-openapi/validate v0.20.2
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
-	github.com/google/go-cmp v0.5.6
+	github.com/google/go-cmp v0.5.8
 	github.com/google/gopacket v1.1.19
 	github.com/google/gops v0.3.18
 	github.com/google/renameio v1.0.1
