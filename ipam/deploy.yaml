@@ -1,0 +1,35 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: cilium-ipam-injector
+webhooks:
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      caBundle: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUMwakNDQWJvQ0NRQzA1UE5Oa1AxVytEQU5CZ2txaGtpRzl3MEJBUXNGQURBcU1TZ3dKZ1lEVlFRRERCOUIKWkcxcGMzTnBiMjRnUTI5dWRISnZiR3hsY2lCWFpXSm9iMjlySUVOQk1DQVhEVEl5TVRBeE1UQTRNREF3T1ZvWQpEekl4TWpJd09URTNNRGd3TURBNVdqQXFNU2d3SmdZRFZRUUREQjlCWkcxcGMzTnBiMjRnUTI5dWRISnZiR3hsCmNpQlhaV0pvYjI5cklFTkJNSUlCSWpBTkJna3Foa2lHOXcwQkFRRUZBQU9DQVE4QU1JSUJDZ0tDQVFFQXJDQTYKazdhaXZ1RHFEak1xWVFYMmpKQXFNeGlLaHVKUFVoWlRnS1d3OHlMMFpqMUZDanV1RVhVY1M4Ymt0L1A5b3ljaApXajJhVjJ6VTYzVHIrTzFhTFlSaktjOTFBSEFQWVlCWENoT1N6bG9VUTZYdFBVWDBxZGlQMjZWaDliYVlIazMrCkRUUlRWK24rbWE2VHlpRldjN2xsSVdPbzVxaWZXRU1XQ0lJQ2NlR3pvVnRlTk8wVTJjYzRyTDRBUzVMQ0R0L0QKeW9QdnNEUC92N0NoR2RlNndZUWNzZFpMWjM2ZkQwb003V3VEaXQyR0cyUVJlMW1NQlFua1B0ajNGMWRCUVNUUApqcHlKZ0hoTm0zeWp1ZmpsdXNQVGEyWUtEUXdVTU8yU1o3WHROR3BlUUVEeThxQW5KWGpnR1M3MnE1YVFCcnBHCmZoMjdFejduYSs5djJKaWNwd0lEQVFBQk1BMEdDU3FHU0liM0RRRUJDd1VBQTRJQkFRQnFtcXlOL0x0Mzg2NmQKeE1GTldzbXIxbDdwcHRVeldwcy9TRjU2SzF2MkcyVzQycTdMVTJUUFNFQjNiRlRnSEo4UXJzazBabGVFMW1UVApwazJTZXZ1N2JnSlA1TVFPQkJrMm9wNlZzMnpNZmJDNE5ueDBLOElZbVJYRnpVc3U1Qno0bzdTdlZEK0tjUHpyCjVLUVNQQTkwdjU4cU9yY0NCVGNacGRMMld5dGVJaTFsSUUvTW5MbHJvRmt2RHljVGkwVWdEajNac3BqOStncHgKOTEvWTg2enNzeHp6ZkVKeCtOUlhRR2lCNk41YjM5QVVKbkRkaWs4ZVlSM3BuYk9nbmhEMG1PZTFCN3l5eDQ2RQptMENxRjlxYmpnQWNDSUFTb2VWeTRhWG5ybjA4SmFFWWtrd0d2U0Y0Vy9TZWsxRk5maG45UDg2VzJBeTRqdWNUCjcvMXR5YXNiCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"
+      url: https://10.10.80.8:443/inject
+    failurePolicy: Fail
+    matchPolicy: Equivalent
+    name: cilium-ipam-injector.woqutech.com
+    objectSelector:
+      matchExpressions:
+        - key: cilium-ipam-injector
+          operator: NotIn
+          values:
+          - disabled
+        - key: mytest-ipam
+          operator: Exists
+    reinvocationPolicy: Never
+    rules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+        resources:
+          - pods
+          - "pods/*"
+        scope: "Namespaced"
+    sideEffects: None
+    timeoutSeconds: 10

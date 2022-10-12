@@ -10,6 +10,7 @@ import (
 	"net"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/cilium/cilium/pkg/k8s"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/cilium/cilium/pkg/k8s/informer"
+	"github.com/cilium/cilium/pkg/k8s/watchers"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
@@ -48,6 +50,8 @@ const (
 	customResourceUpdateRate = 15 * time.Second
 
 	fieldName = "name"
+
+	CiliumIPAMPodAnnotation = "io.cilium.cni/IPAM.crd"
 )
 
 // nodeStore represents a CiliumNode custom resource and binds the CR to a list
@@ -76,6 +80,8 @@ type nodeStore struct {
 
 	conf      Configuration
 	mtuConfig MtuConfiguration
+
+	k8sWatcher *watchers.K8sWatcher
 }
 
 // newNodeStore initializes a new store which reflects the CiliumNode custom
@@ -101,6 +107,12 @@ func newNodeStore(nodeName string, conf Configuration, owner Owner, k8sEventReg 
 		log.WithError(err).Fatal("Unable to initialize CiliumNode synchronization trigger")
 	}
 	store.refreshTrigger = t
+
+	var ok bool
+	store.k8sWatcher, ok = k8sEventReg.(*watchers.K8sWatcher)
+	if !ok {
+		log.WithField(fieldName, nodeName).Warn("Get K8sWatcher failed, pod annotation check will disabled. ")
+	}
 
 	// Create the CiliumNode custom resource. This call will block until
 	// the custom resource has been created
@@ -548,12 +560,51 @@ func (n *nodeStore) isIPInReleaseHandshake(ip string) bool {
 }
 
 // allocateNext allocates the next available IP or returns an error
-func (n *nodeStore) allocateNext(allocated ipamTypes.AllocationMap, family Family) (net.IP, *ipamTypes.AllocationIP, error) {
+func (n *nodeStore) allocateNext(allocated ipamTypes.AllocationMap, family Family, owner string) (net.IP, *ipamTypes.AllocationIP, error) {
 	n.mutex.RLock()
 	defer n.mutex.RUnlock()
 
 	if n.ownNode == nil {
 		return nil, nil, fmt.Errorf("CiliumNode for own node is not available")
+	}
+
+	podIPAMCrdFlag := false // default no need set ip owner
+	if n.k8sWatcher != nil {
+		info := strings.Split(owner, "/")
+		if len(info) == 2 {
+			pod, err := n.k8sWatcher.GetCachedPod(info[0], info[1])
+			if err != nil {
+				return nil, nil, fmt.Errorf("get cached pod info %s failed %v. ", owner, err)
+			}
+			if pod.Annotations != nil && pod.Annotations[CiliumIPAMPodAnnotation] != "" {
+				podIPAMCrdFlag = true
+			}
+		}
+	}
+
+	// Check if IP has a custom owner (only supported in manual CRD mode)
+	if n.conf.IPAMMode() == ipamOption.IPAMCRD && len(owner) != 0 {
+		for ip, ipInfo := range n.ownNode.Spec.IPAM.Pool {
+			if ipInfo.Owner == owner {
+				parsedIP := net.ParseIP(ip)
+				if parsedIP == nil {
+					log.WithFields(logrus.Fields{
+						fieldName: n.ownNode.Name,
+						"ip":      ip,
+					}).Warning("Unable to parse IP in CiliumNode custom resource")
+					return nil, nil, fmt.Errorf("invalid custom ip %s for %s. ", ip, owner)
+				}
+				if DeriveFamily(parsedIP) != family {
+					continue
+				}
+				return parsedIP, &ipInfo, nil
+			}
+		}
+	}
+
+	if podIPAMCrdFlag {
+		return nil, nil, fmt.Errorf("Pod %s with annotation %s set, can't find ip with owner set. ",
+			owner, CiliumIPAMPodAnnotation)
 	}
 
 	// FIXME: This is currently using a brute-force method that can be
@@ -563,6 +614,9 @@ func (n *nodeStore) allocateNext(allocated ipamTypes.AllocationMap, family Famil
 
 			if n.isIPInReleaseHandshake(ip) {
 				continue // IP not available
+			}
+			if ipInfo.Owner != "" {
+				continue // IP is used by another
 			}
 			parsedIP := net.ParseIP(ip)
 			if parsedIP == nil {
@@ -803,7 +857,7 @@ func (a *crdAllocator) AllocateNext(owner string) (*AllocationResult, error) {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
 
-	ip, ipInfo, err := a.store.allocateNext(a.allocated, a.family)
+	ip, ipInfo, err := a.store.allocateNext(a.allocated, a.family, owner)
 	if err != nil {
 		return nil, err
 	}
@@ -827,7 +881,7 @@ func (a *crdAllocator) AllocateNextWithoutSyncUpstream(owner string) (*Allocatio
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
 
-	ip, ipInfo, err := a.store.allocateNext(a.allocated, a.family)
+	ip, ipInfo, err := a.store.allocateNext(a.allocated, a.family, owner)
 	if err != nil {
 		return nil, err
 	}
