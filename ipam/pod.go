@@ -33,17 +33,22 @@ func DoPodAddHandle(ciliumClientset *versioned.Clientset, pod *v1.Pod) error {
 		return nil
 	}
 	key := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+	l := plog.WithField("key", key)
+
+	l.Infof("do pod. ")
 
 	if pod.Status.PodIP != "" {
+		l.Infof("pod has already allocated. ")
 		podAllocateCache.Delete(key) // clean cache
 		return nil
 	}
 	_, ok := podAllocateCache.Load(key) // has allocate before
 	if ok {
+		l.Infof("has cache. try next time. ")
 		return nil
 	}
 
-	l := plog.WithField("nodeName", nodeName)
+	l = l.WithField("nodeName", nodeName)
 
 	cn, err := ciliumNodeLister.Get(nodeName)
 	if err != nil {
@@ -58,15 +63,13 @@ func DoPodAddHandle(ciliumClientset *versioned.Clientset, pod *v1.Pod) error {
 
 	l = l.WithField("key", key).WithField("owner", owner)
 
-	newCn, err := AllocateIpForPod(cn, key, owner)
-	if err != nil {
-		l.Errorf("allocate ip for pod %s failed %v. ", key, err)
-		return nil
-	}
+	newCn, ip := AllocateIpForPod(cn, key, owner)
 
 	if newCn == nil {
+		l.Infof("no need update. ")
 		return nil // no need allocate
 	}
+	l = l.WithField("newIp", ip)
 	l.Infof("allocate ip for pod. ")
 
 	ctx, can := context.WithTimeout(context.TODO(), time.Second*20)
@@ -82,12 +85,12 @@ func DoPodAddHandle(ciliumClientset *versioned.Clientset, pod *v1.Pod) error {
 }
 
 
-func AllocateIpForPod(cn *v2.CiliumNode, owner, resource string) (*v2.CiliumNode, error)  {
+func AllocateIpForPod(cn *v2.CiliumNode, owner, resource string) (*v2.CiliumNode, string)  {
 	avaIp := ""
 
 	for k, v := range cn.Spec.IPAM.Pool {
 		if v.Owner == owner {
-			return nil, nil // has already allocate
+			return nil, "" // has already allocate
 		}
 		if avaIp == "" {
 			_, ok := cn.Status.IPAM.Used[k]
@@ -102,5 +105,5 @@ func AllocateIpForPod(cn *v2.CiliumNode, owner, resource string) (*v2.CiliumNode
 		Owner:    owner,
 		Resource: resource,
 	}
-	return newCn, nil
+	return newCn, avaIp
 }

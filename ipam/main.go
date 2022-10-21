@@ -39,6 +39,8 @@ var (
 	keyFile  = pflag.String("key_file", "", "https key file")
 
 	address = pflag.String("port", ":443", "address to listen. ")
+
+	initFlag = pflag.Bool("init", false, "if init cilium. ")
 )
 
 
@@ -67,6 +69,15 @@ func main()  {
 
 	clientset := kubernetes.NewForConfigOrDie(kubeConfig)
 	ciliumClientset = versioned.NewForConfigOrDie(kubeConfig)
+
+	if *initFlag {
+		// 第一次初始化，以hostnetwork启动，并提前初始化ipam配置
+		err = InitCiliumNodes()
+		if err != nil {
+			panic(err)
+		}
+		os.Exit(0)
+	}
 
 	sharedInformer := informers.NewSharedInformerFactory(clientset, time.Minute)
 	ciliumSharedInformer := externalversions.NewSharedInformerFactoryWithOptions(ciliumClientset, time.Minute)
@@ -158,7 +169,6 @@ func main()  {
 				lp.Infof("quit. ")
 				return
 			}
-			podQueue.Forget(key)
 			ns, name, err := cache.SplitMetaNamespaceKey(key.(string))
 			if err != nil {
 				lp.Infof("get %s meta name faild %v. ", key.(string), err)
@@ -173,6 +183,7 @@ func main()  {
 			}
 			err = DoPodAddHandle(ciliumClientset, pod)
 			if err != nil {
+				lp.Errorf("do pod handle failed %v. ", err)
 				podQueue.AddRateLimited(key)
 			} else {
 				podQueue.Forget(key)
@@ -215,11 +226,8 @@ func DoCiliumNodeIpAlloc(ciliumClientset *versioned.Clientset, cn *v2.CiliumNode
 }
 
 func DoAllocate(l *logrus.Entry, cn *v2.CiliumNode) bool {
-	max := ""
-	for k, _ := range cn.Spec.IPAM.Pool {
-		if max < k {
-			max = k
-		}
+	if cn.Spec.IPAM.Pool == nil {
+		cn.Spec.IPAM.Pool = make(types.AllocationMap)
 	}
 
 	l = l.WithField("cidr", cn.Spec.IPAM.PodCIDRs).WithField("old_pool_len", len(cn.Spec.IPAM.Pool))
@@ -229,20 +237,17 @@ func DoAllocate(l *logrus.Entry, cn *v2.CiliumNode) bool {
 		return false
 	}
 
-	var maxIp net.IP
-	start := true
-	if max != "" {
-		start = false
-		maxIp = net.ParseIP(max)
-		l.Infof("get max ip %s. ", maxIp.String())
-	}
+	start := false
+	idx := 0
+	num := len(cn.Spec.IPAM.Pool)
 	addStep := 0
 	for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); inc(ip) {
-		if !start && maxIp != nil && maxIp.Equal(ip) {
+		if !start && idx >= num {
 			start = true
 			continue
 		}
 		if !start {
+			idx++
 			continue
 		}
 		if addStep >= 10 {
@@ -297,4 +302,18 @@ func DoOwnerIpRecycle(l *logrus.Entry, cn *v2.CiliumNode) (needUpdate bool) {
 		needUpdate = true
 	}
 	return
+}
+
+func InitCiliumNodes() error  {
+	cnList, err := ciliumClientset.CiliumV2().CiliumNodes().List(context.TODO(), v1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("get cilium node list failed %v. ", err)
+	}
+	for _, cn := range cnList.Items {
+		err = SyncCiliumNode(cn.DeepCopy())
+		if err != nil {
+			return fmt.Errorf("sync %s failed %v. ", cn.Name, err)
+		}
+	}
+	return nil
 }
