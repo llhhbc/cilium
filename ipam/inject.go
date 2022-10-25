@@ -1,5 +1,6 @@
 package main
 
+
 import (
 	"encoding/json"
 	"fmt"
@@ -112,11 +113,11 @@ func injectPod(ar *admv1.AdmissionReview) *admv1.AdmissionResponse {
 		pod.Annotations = make(map[string]string, 0)
 	}
 
-	if pod.Annotations[CiliumIPAMPodAnnotation] != "" {
-		return allow
-	}
-
-	pod.Annotations[CiliumIPAMPodAnnotation] = "true"
+	//if pod.Annotations[CiliumIPAMPodAnnotation] != "" {
+	//	return allow
+	//}
+	//
+	//pod.Annotations[CiliumIPAMPodAnnotation] = "true"
 
 	to, _ := json.Marshal(pod)
 	patch, err := jsonpatch.CreatePatch(from, to)

@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/cilium/cilium/pkg/ipam/types"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
@@ -16,37 +16,23 @@ import (
 	"github.com/cilium/cilium/pkg/logging/logfields"
 )
 
-const CiliumIPAMPodAnnotation = "io.cilium.cni/IPAM.crd"
 
 var plog = logging.DefaultLogger.WithField(logfields.LogSubsys, "pod-ipam")
 
-var podAllocateCache sync.Map
-
-func DoPodAddHandle(ciliumClientset *versioned.Clientset, pod *v1.Pod) error {
-	if pod.Annotations == nil || pod.Annotations[CiliumIPAMPodAnnotation] == "" {
-		return nil
-	}
-
+func DoPodAddHandle(ciliumClientset *versioned.Clientset, pod *v1.Pod, selector labels.Selector) error {
 	nodeName := pod.Spec.NodeName
 
-	if nodeName == "" {
+	if nodeName == "" || pod.Status.PodIP == "" {
 		return nil
 	}
 	key := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
 	l := plog.WithField("key", key)
 
-	l.Infof("do pod. ")
+	if !selector.Matches(labels.Set(pod.Labels)) {
+		return nil
+	}
 
-	if pod.Status.PodIP != "" {
-		l.Infof("pod has already allocated. ")
-		podAllocateCache.Delete(key) // clean cache
-		return nil
-	}
-	_, ok := podAllocateCache.Load(key) // has allocate before
-	if ok {
-		l.Infof("has cache. try next time. ")
-		return nil
-	}
+	l.Infof("do pod. ")
 
 	l = l.WithField("nodeName", nodeName)
 
@@ -63,14 +49,14 @@ func DoPodAddHandle(ciliumClientset *versioned.Clientset, pod *v1.Pod) error {
 
 	l = l.WithField("key", key).WithField("owner", owner)
 
-	newCn, ip := AllocateIpForPod(cn, key, owner)
+	newCn := FlagIpForPod(cn, key, owner, pod.Status.PodIP)
 
 	if newCn == nil {
 		l.Infof("no need update. ")
 		return nil // no need allocate
 	}
-	l = l.WithField("newIp", ip)
-	l.Infof("allocate ip for pod. ")
+	l = l.WithField("newIp", pod.Status.PodIP)
+	l.Infof("flag ip for pod. ")
 
 	ctx, can := context.WithTimeout(context.TODO(), time.Second*20)
 	defer can()
@@ -80,8 +66,19 @@ func DoPodAddHandle(ciliumClientset *versioned.Clientset, pod *v1.Pod) error {
 		return err
 	}
 	l.Infof("allocate ip ok. ")
-	podAllocateCache.Store(key, "true")
 	return nil
+}
+
+func FlagIpForPod(cn *v2.CiliumNode, owner, resource, ipInfo string) *v2.CiliumNode  {
+	if cn.Spec.IPAM.Pool[ipInfo].Owner == owner && cn.Spec.IPAM.Pool[ipInfo].Resource == resource {
+		return nil
+	}
+	newCn := cn.DeepCopy()
+	newCn.Spec.IPAM.Pool[ipInfo] = types.AllocationIP{
+		Owner:    owner,
+		Resource: resource,
+	}
+	return newCn
 }
 
 

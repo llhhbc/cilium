@@ -84,6 +84,8 @@ spec:
     spec:
       containers:
         - image: registry.woqutech.com/woqutech/cilium-ipam-hook:v1.0.0
+          args:
+            - --labelSector=
           imagePullPolicy: IfNotPresent
           name: discovery
           resources: {}

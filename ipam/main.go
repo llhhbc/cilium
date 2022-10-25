@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -35,21 +35,15 @@ import (
 var mlog = logging.DefaultLogger.WithField(logfields.LogSubsys, "my-ipam")
 
 var (
-	certFile = pflag.String("cert_file", "", "https cert file")
-	keyFile  = pflag.String("key_file", "", "https key file")
-
-	address = pflag.String("port", ":443", "address to listen. ")
-
-	initFlag = pflag.Bool("init", false, "if init cilium. ")
-)
-
-
-var (
 	ciliumNodeLister v22.CiliumNodeLister
 	ciliumClientset *versioned.Clientset
 
 	stsLister v13.StatefulSetLister
 	podLister v14.PodLister
+)
+
+var (
+	labelSector = pflag.String("labelSector", `{"matchLabels":{"noStatic":"true"}}`, "LabelSelectorRequirement json")
 )
 
 func main()  {
@@ -65,19 +59,18 @@ func main()  {
 		panic(err.Error())
 	}
 
-	http.HandleFunc("/inject", ServerInject)
+	sel := v1.LabelSelector{}
+	err = json.Unmarshal([]byte(*labelSector), &sel)
+	if err != nil {
+		klog.Fatalf("parse label sector failed %v. ", err)
+	}
+	slel, err := v1.LabelSelectorAsSelector(&sel)
+	if err != nil {
+		klog.Fatalf("convert to selector failed %v. ", err)
+	}
 
 	clientset := kubernetes.NewForConfigOrDie(kubeConfig)
 	ciliumClientset = versioned.NewForConfigOrDie(kubeConfig)
-
-	if *initFlag {
-		// 第一次初始化，以hostnetwork启动，并提前初始化ipam配置
-		err = InitCiliumNodes()
-		if err != nil {
-			panic(err)
-		}
-		os.Exit(0)
-	}
 
 	sharedInformer := informers.NewSharedInformerFactory(clientset, time.Minute)
 	ciliumSharedInformer := externalversions.NewSharedInformerFactoryWithOptions(ciliumClientset, time.Minute)
@@ -181,7 +174,7 @@ func main()  {
 				podQueue.Done(key)
 				continue
 			}
-			err = DoPodAddHandle(ciliumClientset, pod)
+			err = DoPodAddHandle(ciliumClientset, pod, slel)
 			if err != nil {
 				lp.Errorf("do pod handle failed %v. ", err)
 				podQueue.AddRateLimited(key)
@@ -192,11 +185,7 @@ func main()  {
 		}
 	}()
 
-	if *certFile != "" && *keyFile != "" {
-		klog.Infoln("listen https: ")
-		klog.Fatal(http.ListenAndServeTLS(*address, *certFile, *keyFile, nil))
-	}
-	klog.Fatal(http.ListenAndServe(*address, nil))
+	select {}
 }
 
 func SyncCiliumNode(cn *v2.CiliumNode) error  {
@@ -207,13 +196,16 @@ func DoCiliumNodeIpAlloc(ciliumClientset *versioned.Clientset, cn *v2.CiliumNode
 	l := mlog.WithField("ciliumNode_key", fmt.Sprintf("%s/%s", cn.Namespace, cn.Name))
 
 	updateFlag := false
-	if len(cn.Spec.IPAM.Pool) - len(cn.Status.IPAM.Used) <= 5 {
+	l = l.WithField("from", len(cn.Spec.IPAM.Pool)).WithField("used", len(cn.Status.IPAM.Used))
+	if len(cn.Spec.IPAM.Pool) - len(cn.Status.IPAM.Used) <= 10 {
 		updateFlag = DoAllocate(l, cn)
 	}
+	l = l.WithField("to", len(cn.Spec.IPAM.Pool))
 
 	updateFlag = DoOwnerIpRecycle(l, cn) || updateFlag
 
 	if !updateFlag {
+		l.Infof("node has enough ip. ")
 		return nil
 	}
 
