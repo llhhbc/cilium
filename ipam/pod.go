@@ -74,6 +74,9 @@ func FlagIpForPod(cn *v2.CiliumNode, owner, resource, ipInfo string) *v2.CiliumN
 		return nil
 	}
 	newCn := cn.DeepCopy()
+	if newCn.Spec.IPAM.Pool == nil {
+		newCn.Spec.IPAM.Pool = make(map[string]types.AllocationIP, 0)
+	}
 	newCn.Spec.IPAM.Pool[ipInfo] = types.AllocationIP{
 		Owner:    owner,
 		Resource: resource,
