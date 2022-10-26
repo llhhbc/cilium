@@ -197,7 +197,7 @@ func DoCiliumNodeIpAlloc(ciliumClientset *versioned.Clientset, cn *v2.CiliumNode
 
 	updateFlag := false
 	l = l.WithField("from", len(cn.Spec.IPAM.Pool)).WithField("used", len(cn.Status.IPAM.Used))
-	if len(cn.Spec.IPAM.Pool) - len(cn.Status.IPAM.Used) <= 10 {
+	if len(cn.Spec.IPAM.Pool) - len(cn.Status.IPAM.Used) <= 10 || countFreeIP(cn) <= 10 {
 		updateFlag = DoAllocate(l, cn)
 	}
 	l = l.WithField("to", len(cn.Spec.IPAM.Pool))
@@ -215,6 +215,20 @@ func DoCiliumNodeIpAlloc(ciliumClientset *versioned.Clientset, cn *v2.CiliumNode
 		return err
 	}
 	return nil
+}
+
+func countFreeIP(cn *v2.CiliumNode) int  {
+	free := 0
+	for k, v := range cn.Spec.IPAM.Pool {
+		if v.Owner != "" {
+			continue
+		}
+		if cn.Status.IPAM.Used != nil && cn.Status.IPAM.Used[k].Owner != "" {
+			continue
+		}
+		free ++
+	}
+	return free
 }
 
 func DoAllocate(l *logrus.Entry, cn *v2.CiliumNode) bool {
