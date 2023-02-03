@@ -4,7 +4,9 @@ import (
 	"context"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 )
 
 const VpcLabel = "vpc.id"
+const VpcNumLabel = "vpc.num"
 const VpcInternalIPAnnotation = "vpc.internal.ip"
 const VpcExternalIPAnnotation = "vpc.external.ip"
 
@@ -121,7 +124,6 @@ func GetNodeVpcAddr(nodeName string) net.IP {
 	}
 
 	// TODO add vpc lan
-	var nextNodeIP net.IP
 	selfNode, err := clientSet.CoreV1().Nodes().Get(context.Background(), GetName(), v1.GetOptions{})
 	if err != nil {
 		log.WithError(err).Errorf("Get self node %s info failed. ", GetName())
@@ -147,14 +149,40 @@ func GetNodeVpcAddr(nodeName string) net.IP {
 	}
 
 	if selfVpc == nextVpc && nextNode.Annotations[VpcInternalIPAnnotation] != "" {
-		nextNodeIP = net.ParseIP(nextNode.Annotations[VpcInternalIPAnnotation]).To4()
-		log.Infof("Got same vpc to next node[%s], use internal ip %s. ", nextNode.Name, nextNodeIP.String())
-		return nextNodeIP
+		return GetIp(fmt.Sprintf("Got same vpc to next node[%s], use internal", nextNode.Name),
+			nextNode.Annotations[VpcInternalIPAnnotation])
 	}
+
+	// for vpc.num > 1
+	if nextNode.Annotations[VpcNumLabel] != "" && nextNode.Annotations[VpcNumLabel] > "1" {
+		num, err := strconv.Atoi(nextNode.Annotations[VpcNumLabel])
+		if err != nil {
+			log.Warningf("Get invalid %s config %s. skip. ", VpcNumLabel, nextNode.Annotations[VpcNumLabel])
+			return nil
+		}
+		for i:=1;i<num; i++ {
+			// 由于有多个vpc配置，所以，vpcId必须要匹配。
+			if selfNode.Annotations[VpcLabel] == nextNode.Annotations[GetKey(VpcLabel, i)] {
+				return GetIp(fmt.Sprintf("Got same vpc %d to next node[%s], use internal", i, nextNode.Name),
+					nextNode.Annotations[GetKey(VpcInternalIPAnnotation, i)])
+			}
+		}
+	}
+
 	if selfVpc != nextVpc && nextNode.Annotations[VpcExternalIPAnnotation] != "" {
-		nextNodeIP = net.ParseIP(nextNode.Annotations[VpcExternalIPAnnotation]).To4()
-		log.Infof("Got diff vpc to next node[%s], use external ip %s. ", nextNode.Name, nextNodeIP.String())
-		return nextNodeIP
+		return GetIp(fmt.Sprintf("Got diff vpc to next node[%s], use external", nextNode.Name),
+			nextNode.Annotations[VpcExternalIPAnnotation])
 	}
+
 	return nil
+}
+
+func GetIp(desc, src string) net.IP  {
+	res := net.ParseIP(src).To4()
+	log.Infof("%s ip %s. ", desc, res.String())
+	return res
+}
+
+func GetKey(prefix string, idx int) string  {
+	return fmt.Sprintf("%s_%d", prefix, idx)
 }
