@@ -36,7 +36,7 @@ var mlog = logging.DefaultLogger.WithField(logfields.LogSubsys, "my-ipam")
 
 var (
 	ciliumNodeLister v22.CiliumNodeLister
-	ciliumClientset  *versioned.Clientset
+	ciliumClientset *versioned.Clientset
 
 	stsLister v13.StatefulSetLister
 	podLister v14.PodLister

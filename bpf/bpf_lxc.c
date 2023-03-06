@@ -1332,6 +1332,7 @@ int handle_xgress(struct __ctx_buff *ctx)
 
 	bpf_clear_meta(ctx);
 	reset_queue_mapping(ctx);
+	printk("run here with from-container");
 
 	send_trace_notify(ctx, TRACE_FROM_LXC, SECLABEL, 0, 0, 0,
 			  TRACE_REASON_UNKNOWN, TRACE_PAYLOAD_LEN);

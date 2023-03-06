@@ -13,8 +13,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/cilium/cilium/pkg/option"
 )
 
 // +genclient
@@ -159,8 +157,7 @@ func (u *XDSResource) UnmarshalJSON(b []byte) (err error) {
 		json.Indent(&buf, b, "", "\t")
 		log.Warningf("Ignoring invalid CiliumEnvoyConfig JSON (%s): %s",
 			err, buf.String())
-	} else if option.Config.Debug {
-		log.Debugf("CEC unmarshaled XDS Resource: %v", prototext.Format(u.Any))
 	}
+	log.Debugf("CEC unmarshaled XDS Resource: %v", prototext.Format(u.Any))
 	return nil
 }

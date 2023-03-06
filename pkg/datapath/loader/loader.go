@@ -407,6 +407,7 @@ func (l *Loader) CompileOrLoad(ctx context.Context, ep datapath.Endpoint, stats 
 		return err
 	}
 
+	// here for rewrite elf file
 	template, err := elf.Open(templatePath)
 	if err != nil {
 		return err
