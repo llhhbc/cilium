@@ -9,7 +9,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/cilium/cilium/pkg/logging"
+	"github.com/cilium/cilium/pkg/logging/logfields"
 	"os/exec"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -34,6 +37,12 @@ scan:
 // combinedOutput is the core implementation of catching deadline exceeded
 // options and logging errors, with an optional set of filtered outputs.
 func combinedOutput(ctx context.Context, cmd *exec.Cmd, filters []string, scopedLog *logrus.Entry, verbose bool) ([]byte, error) {
+	logging.DefaultLogger.WithField(logfields.LogSubsys, "mydebug").
+		WithField("cmd", cmd.Args).
+		Debug("run cmd ok. ")
+	logging.DefaultLogger.WithField(logfields.LogSubsys, "mydebug").
+		WithField("cmd", cmd.Args).
+		WithField("call_stack", string(debug.Stack())).Debug("cmd stack. ")
 	out, err := cmd.CombinedOutput()
 	if ctx.Err() != nil {
 		scopedLog.WithError(err).WithField("cmd", cmd.Args).Error("Command execution failed")

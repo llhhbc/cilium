@@ -18,7 +18,11 @@ var endpointRegenerateCmd = &cobra.Command{
 	PreRun: requireEndpointID,
 	Run: func(cmd *cobra.Command, args []string) {
 		id := args[0]
-		cfg := &models.EndpointConfigurationSpec{}
+		cfg := &models.EndpointConfigurationSpec{Options: models.ConfigurationMap{}}
+		if len(args) > 1 {
+			// set level
+			cfg.Options["Debug"] = "true"
+		}
 		if err := client.EndpointConfigPatch(id, cfg); err != nil {
 			Fatalf("Cannot regenerate endpoint %s: %s\n", id, err)
 		} else {

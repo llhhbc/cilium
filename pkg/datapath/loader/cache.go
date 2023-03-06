@@ -233,6 +233,8 @@ func (o *objectCache) build(ctx context.Context, cfg *templateCfg, hash string) 
 			Err:  err,
 		}
 	}
+	scopedLog := log.WithField(logfields.Path, objectPath).WithField(logfields.BPFHeaderfileHash, headerPath)
+	scopedLog.Debugf("write head file ok. ")
 
 	cfg.stats.BpfCompilation.Start()
 	err = compileTemplate(ctx, templatePath, isHost)

@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  generation: 1
+  labels:
+    app.kubernetes.io/name: cilium-ipam-hook
+  name: cilium-ipam-hook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cilium-ipam-hook
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cilium-ipam-hook
+    spec:
+      containers:
+        - args:
+          - --labelSector={"matchExpressions":[{"key":"cilium-ipam-injector","operator":"NotIn","values":["disabled"]},{"key":"DBType","operator":"In","values":["postgres"]},{"key":"Type","operator":"In","values":["Database"]}]}
+          image: registry.woqutech.com/woqutech/cilium-ipam-hook:v1.0.0
+          imagePullPolicy: IfNotPresent
+          name: discovery
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /etc/localtime
+              name: localtime
+      dnsPolicy: ClusterFirst
+      hostNetwork: true
+      nodeSelector:
+        qfusion/master: "true"
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 1337
+      serviceAccount: dboperator
+      serviceAccountName: dboperator
+      terminationGracePeriodSeconds: 30
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+          operator: Exists
+        - effect: NoSchedule
+          key: qfusion/master
+          operator: Exists
+      volumes:
+        - hostPath:
+            path: /usr/share/zoneinfo/Asia/Shanghai
+            type: ""
+          name: localtime

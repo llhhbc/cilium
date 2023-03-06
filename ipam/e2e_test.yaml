@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    e2etest: vmi
+    AppName: e2etest
+    CreatedBy: woqutech.com
+    mytest-ipam: test
+  name: vmi-e2ests
+spec:
+  podManagementPolicy: Parallel
+  replicas: 1
+  selector:
+    matchLabels:
+      e2etest: vmi
+      mytest-ipam: test
+  serviceName: vmi-e2ests-headless
+  template:
+    metadata:
+      labels:
+        e2etest: vmi
+        mytest-ipam: test
+      name: vmi-e2ests
+    spec:
+      containers:
+        - image: registry.woqutech.com/woqutech/busybox:1.26.2
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+          args:
+            - "-c"
+            - |
+              touch /var/log/data/a.log
+              echo "aaa" >> /var/log/data/a.log
+              sleep 100000
+          name: busybox
+      dnsPolicy: ClusterFirst
+      enableServiceLinks: false
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      terminationGracePeriodSeconds: 0

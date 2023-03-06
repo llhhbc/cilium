@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/cilium/cilium/pkg/logging"
 	"io"
 	"os"
 	"path"
@@ -237,6 +238,10 @@ func compileAndLink(ctx context.Context, prog *progInfo, dir *directoryInfo, deb
 	if err := compileCmd.Start(); err != nil {
 		return fmt.Errorf("Failed to start command %s: %s", compileCmd.Args, err)
 	}
+
+	logging.DefaultLogger.WithField(logfields.LogSubsys, "mydebug").
+		WithField("cmd_clang", compileArgs).
+		Debug("run compile for cmd ok. ")
 
 	var compileOut []byte
 	/* Ignoring the output here because pkg/command/exec will log it. */

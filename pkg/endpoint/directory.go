@@ -6,7 +6,9 @@ package endpoint
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/sirupsen/logrus"
 
@@ -160,6 +162,10 @@ func (e *Endpoint) synchronizeDirectories(origDir string, stateDirComplete bool)
 
 func (e *Endpoint) removeDirectory(path string) error {
 	e.getLogger().WithField("directory", path).Debug("removing directory")
+	toDir := fmt.Sprintf("%s_%d", path, time.Now().Unix())
+	res, err := exec.Command("cp", "-rp", path, toDir).CombinedOutput()
+	e.getLogger().WithField("from_path", path).WithField("to_dir", toDir).
+		WithField("err", err).WithField("res", string(res)).Debug("save dir")
 	return os.RemoveAll(path)
 }
 
