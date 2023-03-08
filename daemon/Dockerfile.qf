@@ -1,0 +1,2 @@
+from registry.woqutech.com/woqutech/cilium-cilium:v1.11.0
+COPY ./daemon /usr/bin/cilium-agent
