@@ -6,6 +6,7 @@ package loader
 import (
 	"context"
 	"fmt"
+	"github.com/cilium/cilium/pkg/logging"
 	"net"
 	"strconv"
 
@@ -80,6 +81,8 @@ func replaceDatapath(ctx context.Context, ifName, objPath, progSec, progDirectio
 
 	// Temporarily rename bpffs pins of maps whose definitions have changed in
 	// a new version of a datapath ELF.
+	logging.DefaultLogger.WithField("map prefix path", bpf.MapPrefixPath()).
+		WithField("obj_path", objPath).Debug("replace datapath")
 	if err := bpf.StartBPFFSMigration(bpf.MapPrefixPath(), objPath); err != nil {
 		return nil, fmt.Errorf("Failed to start bpffs map migration: %w", err)
 	}

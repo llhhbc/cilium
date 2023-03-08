@@ -307,6 +307,9 @@ func (e *Endpoint) regenerate(context *regenerationContext) (retErr error) {
 		logfields.Reason:    context.Reason,
 	}).Debug("Regenerating endpoint")
 
+	e.getLogger().WithField("ep_json", e.String()).
+		WithField("ec_json", context.String()).Debug("Regenerating data context.")
+
 	defer func() {
 		// This has to be within a func(), not deferred directly, so that the
 		// value of retErr is passed in from when regenerate returns.

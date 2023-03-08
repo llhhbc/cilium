@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/cilium/cilium/pkg/logging"
 	"io"
 	"path/filepath"
 
@@ -25,6 +26,8 @@ const bpffsPending = ":pending"
 // the same runtime as the agent. It is imported from a Cilium cmd that takes
 // its bpffs path from an env.
 func StartBPFFSMigration(bpffsPath, elfPath string) error {
+	logging.DefaultLogger.WithField("bpffsPath", bpffsPath).
+		WithField("elfPath", elfPath).Debug("StartBPFFSMigration")
 	coll, err := ebpf.LoadCollectionSpec(elfPath)
 	if err != nil {
 		return err
@@ -60,6 +63,8 @@ func StartBPFFSMigration(bpffsPath, elfPath string) error {
 // the same runtime as the agent. It is imported from a Cilium cmd that takes
 // its bpffs path from an env.
 func FinalizeBPFFSMigration(bpffsPath, elfPath string, revert bool) error {
+	logging.DefaultLogger.WithField("bpffsPath", bpffsPath).
+		WithField("elfPath", elfPath).WithField("revert", revert).Debug("FinalizeBPFFSMigration")
 	coll, err := ebpf.LoadCollectionSpec(elfPath)
 	if err != nil {
 		return err
