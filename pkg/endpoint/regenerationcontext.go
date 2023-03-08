@@ -5,6 +5,7 @@ package endpoint
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/cilium/cilium/pkg/completion"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
@@ -33,6 +34,10 @@ type regenerationContext struct {
 	parentContext context.Context
 
 	cancelFunc context.CancelFunc
+}
+
+func (r *regenerationContext) String() string {
+	return fmt.Sprintf("reason: %s, regCtx: %s", r.Reason, r.datapathRegenerationContext.String())
 }
 
 func ParseExternalRegenerationMetadata(ctx context.Context, c context.CancelFunc, e *regeneration.ExternalRegenerationMetadata) *regenerationContext {
@@ -66,6 +71,11 @@ type datapathRegenerationContext struct {
 
 	finalizeList revert.FinalizeList
 	revertStack  revert.RevertStack
+}
+
+func (ctx *datapathRegenerationContext) String() string {
+	return fmt.Sprintf("headHash: %s, curDir: %s, nextDir: %s, level: %d. ",
+		ctx.bpfHeaderfilesHash, ctx.currentDir, ctx.nextDir, ctx.regenerationLevel)
 }
 
 func (ctx *datapathRegenerationContext) prepareForProxyUpdates(parentCtx context.Context) {
