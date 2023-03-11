@@ -2,12 +2,13 @@ package types
 
 import (
 	"context"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"fmt"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/tools/cache"
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"k8s.io/client-go/informers"
@@ -31,6 +32,8 @@ var nodeLister v12.NodeLister
 var PodLister v12.PodLister
 var clientSet kubernetes.Interface
 
+var nodeIpCache sync.Map
+
 func InitVpc(k8sClient kubernetes.Interface) error {
 	log.Debugf("Start init vpc mod.")
 
@@ -40,6 +43,36 @@ func InitVpc(k8sClient kubernetes.Interface) error {
 
 	nodeLister = shardFactory.Core().V1().Nodes().Lister()
 	PodLister = shardFactory.Core().V1().Pods().Lister()
+
+	shardFactory.Core().V1().Nodes().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			n, ok := obj.(*corev1.Node)
+			if !ok {
+				return
+			}
+			for _, ip := range n.Status.Addresses {
+				nodeIpCache.Store(ip.Address, n)
+			}
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			n, ok := newObj.(*corev1.Node)
+			if !ok {
+				return
+			}
+			for _, ip := range n.Status.Addresses {
+				nodeIpCache.Store(ip.Address, n)
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			n, ok := obj.(*corev1.Node)
+			if !ok {
+				return
+			}
+			for _, ip := range n.Status.Addresses {
+				nodeIpCache.Delete(ip.Address)
+			}
+		},
+	})
 
 	go shardFactory.Start(context.Background().Done())
 
@@ -56,18 +89,14 @@ func InitVpc(k8sClient kubernetes.Interface) error {
 func GetNodeVpcConvert(srcIP string) net.IP {
 	log.Debugf("Get node list for svc. %#v", srcIP)
 
-	nodeList, err := nodeLister.List(labels.Everything())
-	if err != nil {
-		log.WithError(err).Errorln("Get node list failed. ")
-		return nil
-	}
-	log.Debugf("Get current node list %d. ", len(nodeList))
-	for _, n := range nodeList {
-		for _, ip := range n.Status.Addresses {
-			if ip.Address == srcIP {
-				return GetNodeVpcAddr(n.Name)
-			}
+	res, ok := nodeIpCache.Load(srcIP)
+	if ok {
+		n, ok := res.(*corev1.Node)
+		if !ok {
+			log.Errorf("get invalid node info. ")
+			return nil
 		}
+		return GetNodeVpcAddr(n.Name)
 	}
 	return nil
 }
@@ -124,12 +153,12 @@ func GetNodeVpcAddr(nodeName string) net.IP {
 	}
 
 	// TODO add vpc lan
-	selfNode, err := clientSet.CoreV1().Nodes().Get(context.Background(), GetName(), v1.GetOptions{})
+	selfNode, err := nodeLister.Get(GetName())
 	if err != nil {
 		log.WithError(err).Errorf("Get self node %s info failed. ", GetName())
 		return nil
 	}
-	nextNode, err := clientSet.CoreV1().Nodes().Get(context.Background(), nodeName, v1.GetOptions{})
+	nextNode, err := nodeLister.Get(nodeName)
 	if err != nil {
 		log.WithError(err).Errorf("Get next node %s info failed. ", nodeName)
 		return nil
@@ -160,7 +189,7 @@ func GetNodeVpcAddr(nodeName string) net.IP {
 			log.Warningf("Get invalid %s config %s. skip. ", VpcNumLabel, nextNode.Annotations[VpcNumLabel])
 			return nil
 		}
-		for i:=1;i<num; i++ {
+		for i := 1; i < num; i++ {
 			// 由于有多个vpc配置，所以，vpcId必须要匹配。
 			if selfNode.Annotations[VpcLabel] == nextNode.Annotations[GetKey(VpcLabel, i)] {
 				return GetIp(fmt.Sprintf("Got same vpc %d to next node[%s], use internal", i, nextNode.Name),
@@ -177,12 +206,12 @@ func GetNodeVpcAddr(nodeName string) net.IP {
 	return nil
 }
 
-func GetIp(desc, src string) net.IP  {
+func GetIp(desc, src string) net.IP {
 	res := net.ParseIP(src).To4()
 	log.Infof("%s ip %s. ", desc, res.String())
 	return res
 }
 
-func GetKey(prefix string, idx int) string  {
+func GetKey(prefix string, idx int) string {
 	return fmt.Sprintf("%s_%d", prefix, idx)
 }
