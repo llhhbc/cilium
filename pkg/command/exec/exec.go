@@ -39,6 +39,7 @@ scan:
 func combinedOutput(ctx context.Context, cmd *exec.Cmd, filters []string, scopedLog *logrus.Entry, verbose bool) ([]byte, error) {
 	logging.DefaultLogger.WithField(logfields.LogSubsys, "mydebug").
 		WithField("cmd", cmd.Args).
+		WithField("env", cmd.Env).
 		Debug("run cmd ok. ")
 	logging.DefaultLogger.WithField(logfields.LogSubsys, "mydebug").
 		WithField("cmd", cmd.Args).

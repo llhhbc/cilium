@@ -432,9 +432,11 @@ func (l *Loader) Reinitialize(ctx context.Context, o datapath.BaseProgramOwner, 
 	prog := filepath.Join(option.Config.BpfDir, "init.sh")
 	cmd := exec.CommandContext(ctx, prog, args...)
 	cmd.Env = bpf.Environment()
-	if _, err := cmd.CombinedOutput(log, true); err != nil {
+	res, err := cmd.CombinedOutput(log, true)
+	if err != nil {
 		return err
 	}
+	log.WithField("init_out", string(res)).Debug("init ok.")
 
 	if l.canDisableDwarfRelocations {
 		// Validate alignments of C and Go equivalent structs

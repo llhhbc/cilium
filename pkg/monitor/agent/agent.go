@@ -7,8 +7,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/cilium/cilium/pkg/logging"
 	"os"
 	"time"
 
@@ -204,6 +206,10 @@ func (a *Agent) startPerfReaderLocked() {
 	a.perfReaderCancel() // don't leak any old readers, just in case.
 	perfEventReaderCtx, cancel := context.WithCancel(a.ctx)
 	a.perfReaderCancel = cancel
+	logging.DefaultLogger.WithField("cpus", a.Cpus).
+		WithField("event_map", a.events.String()).
+		WithField("npages", a.Npages).
+		WithField("pagesize", a.Pagesize).Debug("monitor agent start. ")
 	go a.handleEvents(perfEventReaderCtx)
 }
 
@@ -344,6 +350,7 @@ func (a *Agent) handleEvents(stopCtx context.Context) {
 				a.Lock()
 				a.MonitorStatus.Unknown++
 				a.Unlock()
+				scopedLog.Info("read unknown event. ")
 			} else {
 				scopedLog.WithError(err).Warn("Error received while reading from perf buffer")
 				if errors.Is(err, unix.EBADFD) {
@@ -352,6 +359,9 @@ func (a *Agent) handleEvents(stopCtx context.Context) {
 			}
 			continue
 		}
+		scopedLog.WithField("cpu", record.CPU).
+			WithField("raw_sample", hex.EncodeToString(record.RawSample)).
+			WithField("lost_samples", record.LostSamples).Debug("read perf info. ")
 
 		a.processPerfRecord(scopedLog, record)
 	}
