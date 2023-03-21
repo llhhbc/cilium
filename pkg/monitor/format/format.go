@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/gob"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/cilium/cilium/pkg/byteorder"
@@ -109,6 +110,7 @@ func (m *MonitorFormatter) traceEvents(prefix string, data []byte) {
 	if err := monitor.DecodeTraceNotify(data, &tn); err != nil {
 		fmt.Printf("Error while parsing trace notification message: %s\n", err)
 	}
+	fmt.Printf("decode data ok %#v. ", tn)
 	if m.match(monitorAPI.MessageTypeTrace, tn.Source, tn.DstID) {
 		switch m.Verbosity {
 		case INFO, DEBUG:
@@ -232,6 +234,7 @@ func (m *MonitorFormatter) FormatSample(data []byte, cpu int) {
 	prefix := fmt.Sprintf("CPU %02d:", cpu)
 	messageType := data[0]
 
+	fmt.Printf("data type: %d, data: %s. ", messageType, hex.EncodeToString(data))
 	switch messageType {
 	case monitorAPI.MessageTypeDrop:
 		m.dropEvents(prefix, data)

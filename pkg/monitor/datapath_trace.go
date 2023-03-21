@@ -42,6 +42,10 @@ const (
 	TraceNotifyVersion1
 )
 
+/*
+
+ */
+
 // TraceNotifyV0 is the common message format for versions 0 and 1.
 type TraceNotifyV0 struct {
 	Type     uint8

@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"encoding/gob"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -134,6 +135,7 @@ func consumeMonitorEvents(conn net.Conn, version listener.Version) error {
 		if err != nil {
 			return err
 		}
+		fmt.Printf("get events %d: %s. \n", pl.Type, hex.EncodeToString(pl.Data))
 		if !printer.FormatEvent(pl) {
 			// earlier code used an else to handle this case, along with pl.Type ==
 			// payload.RecordLost above. It should be safe to call lostEvent to match

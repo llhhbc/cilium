@@ -1378,6 +1378,22 @@ out:
 	return ret;
 }
 
+__section("mydebug1")
+int handle_mydebug1(struct __ctx_buff *ctx)
+{
+    __u64 ctx_len = ctx_full_len(ctx);
+    printk("run here with mydebug1: %lld \n", ctx_len);
+    return CTX_ACT_OK;
+}
+
+__section("mydebug2")
+int handle_mydebug2(struct __ctx_buff *ctx)
+{
+    __u64 ctx_len = ctx_full_len(ctx);
+    printk("run here with mydebug2: %lld \n", ctx_len);
+    return CTX_ACT_OK;
+}
+
 #ifdef ENABLE_IPV6
 static __always_inline int
 ipv6_policy(struct __ctx_buff *ctx, int ifindex, __u32 src_label,

@@ -186,8 +186,8 @@ send_trace_notify(struct __ctx_buff *ctx, enum trace_point obs_point,
 		  __u32 src, __u32 dst, __u16 dst_id, __u32 ifindex,
 		  enum trace_reason reason, __u32 monitor)
 {
-    unsigned char *pt;
-    int i;
+//    unsigned char *pt;
+//    int i;
 	__u64 ctx_len = ctx_full_len(ctx);
 	__u64 cap_len = min_t(__u64, monitor ? : TRACE_PAYLOAD_LEN,
 			      ctx_len);
@@ -196,7 +196,7 @@ send_trace_notify(struct __ctx_buff *ctx, enum trace_point obs_point,
 	update_trace_metrics(ctx, obs_point, reason);
 
 	if (!emit_trace_notify(obs_point, monitor)) {
-//		printk("emit_trace_notify %d \n", obs_point);
+		printk("emit_trace_notify %d \n", obs_point);
 		return;
 	}
 
@@ -210,15 +210,15 @@ send_trace_notify(struct __ctx_buff *ctx, enum trace_point obs_point,
 		.ifindex	= ifindex,
 	};
 	memset(&msg.orig_ip6, 0, sizeof(union v6addr));
-  printk("ctx_event_output %d/%d",
-     src, dst);
-     printk("%d size: %ld \n", obs_point, sizeof(msg));
+//  printk("ctx_event_output %d/%d",
+//     src, dst);
+//     printk("%d size: %ld \n", obs_point, sizeof(msg));
 
-    pt= (void *)&msg;
-#pragma unroll
-    for (i=0;i<48;i++) {
-      printk("%x ", pt[i]);
-    }
+//    pt= (void *)&msg;
+//#pragma unroll
+//    for (i=0;i<48;i++) {
+//      printk("%x ", pt[i]);
+//    }
 	ctx_event_output(ctx, &EVENTS_MAP,
 			 (cap_len << 32) | BPF_F_CURRENT_CPU,
 			 &msg, sizeof(msg));
