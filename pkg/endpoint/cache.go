@@ -55,7 +55,7 @@ type epInfoCache struct {
 }
 
 // Must be called when endpoint is still locked.
-func (e *Endpoint) createEpInfoCache(epdir string) *epInfoCache {
+func (e *Endpoint) CreateEpInfoCache(epdir string) *epInfoCache {
 	cidr6, cidr4 := e.GetCIDRPrefixLengths()
 
 	ep := &epInfoCache{

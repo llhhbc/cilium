@@ -293,7 +293,7 @@ func (p *Parser) resolveEndpoint(ip net.IP, datapathSecurityIdentity uint32) *pb
 				logfields.Identity:    datapathSecurityIdentity,
 				logfields.OldIdentity: userspaceSecurityIdentity,
 				logfields.IPAddr:      ip,
-			}).Debugf("stale identity observed")
+			}).Tracef("stale identity observed")
 		}
 
 		return datapathSecurityIdentity

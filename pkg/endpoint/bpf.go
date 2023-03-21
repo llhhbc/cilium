@@ -901,9 +901,9 @@ func (e *Endpoint) runPreCompilationSteps(regenContext *regenerationContext) (he
 
 	// Cache endpoint information so that we can release the endpoint lock.
 	if datapathRegenCtxt.regenerationLevel >= regeneration.RegenerateWithDatapathRewrite {
-		datapathRegenCtxt.epInfoCache = e.createEpInfoCache(nextDir)
+		datapathRegenCtxt.epInfoCache = e.CreateEpInfoCache(nextDir)
 	} else {
-		datapathRegenCtxt.epInfoCache = e.createEpInfoCache(currentDir)
+		datapathRegenCtxt.epInfoCache = e.CreateEpInfoCache(currentDir)
 	}
 	if datapathRegenCtxt.epInfoCache == nil {
 		return headerfileChanged, fmt.Errorf("Unable to cache endpoint information")

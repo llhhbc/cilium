@@ -1096,7 +1096,7 @@ func (e *Endpoint) leaveLocked(proxyWaitGroup *completion.WaitGroup, conf Delete
 	errors := []error{}
 
 	if !option.Config.DryMode {
-		e.owner.Datapath().Loader().Unload(e.createEpInfoCache(""))
+		e.owner.Datapath().Loader().Unload(e.CreateEpInfoCache(""))
 	}
 
 	// Remove policy references from shared policy structures

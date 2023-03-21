@@ -194,6 +194,7 @@ send_trace_notify(struct __ctx_buff *ctx, enum trace_point obs_point,
 	update_trace_metrics(ctx, obs_point, reason);
 
 	if (!emit_trace_notify(obs_point, monitor))
+		printk("emit_trace_notify %d \n", obs_point);
 		return;
 
 	msg = (typeof(msg)) {
@@ -207,6 +208,8 @@ send_trace_notify(struct __ctx_buff *ctx, enum trace_point obs_point,
 	};
 	memset(&msg.orig_ip6, 0, sizeof(union v6addr));
 
+  printk("ctx_event_output %d/%d \n",
+     src, dst);
 	ctx_event_output(ctx, &EVENTS_MAP,
 			 (cap_len << 32) | BPF_F_CURRENT_CPU,
 			 &msg, sizeof(msg));

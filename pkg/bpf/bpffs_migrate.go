@@ -2,11 +2,13 @@ package bpf
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/cilium/cilium/pkg/logging"
 	"io"
 	"path/filepath"
+
+	"github.com/cilium/cilium/pkg/logging"
 
 	"github.com/cilium/ebpf"
 	"github.com/sirupsen/logrus"
@@ -26,18 +28,25 @@ const bpffsPending = ":pending"
 // the same runtime as the agent. It is imported from a Cilium cmd that takes
 // its bpffs path from an env.
 func StartBPFFSMigration(bpffsPath, elfPath string) error {
-	logging.DefaultLogger.WithField("bpffsPath", bpffsPath).
-		WithField("elfPath", elfPath).Debug("StartBPFFSMigration")
+	l := logging.DefaultLogger.WithField("bpffsPath", bpffsPath).
+		WithField("elfPath", elfPath)
+	l.Debug("StartBPFFSMigration")
 	coll, err := ebpf.LoadCollectionSpec(elfPath)
 	if err != nil {
 		return err
 	}
+	cj, _ := json.Marshal(coll)
+	l.WithField("collection", string(cj)).Debug("load collection spec ")
 
 	for name, spec := range coll.Maps {
+		ll := l.WithField("map", name)
+		ll.Debug("check map. ")
 		// Parse iproute2 bpf_elf_map's extra fields, if any.
 		if err := parseExtra(spec, coll); err != nil {
 			return fmt.Errorf("parsing extra bytes of ELF map definition %q:", name)
 		}
+		b, _ := json.Marshal(spec)
+		ll.WithField("spec", string(b)).Debug("parse map ok")
 
 		// Skip map specs without the pinning flag. Also takes care of skipping .data,
 		// .rodata and .bss.
@@ -45,6 +54,7 @@ func StartBPFFSMigration(bpffsPath, elfPath string) error {
 			continue
 		}
 
+		ll.Debug("repin map")
 		// Re-pin the map with ':pending' suffix if incoming spec differs from
 		// the currently-pinned map.
 		if err := repinMap(bpffsPath, name, spec); err != nil {

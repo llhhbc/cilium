@@ -364,6 +364,27 @@ func (l *Loader) compileAndLoad(ctx context.Context, ep datapath.Endpoint, dirs 
 		return err
 	}
 
+	//stats.BpfWriteELF.Start()
+	//template, err := elf.Open(path.Join(dirs.Output, defaults.TemplatePath))
+	//if err != nil {
+	//	return fmt.Errorf("load template file %s failed %v. ", path.Join(dirs.Output, defaults.TemplatePath), err)
+	//}
+	//defer template.Close()
+	//
+	//epObj := endpointObj
+	//if ep.IsHost() {
+	//	epObj = hostEndpointObj
+	//}
+	//dstPath := path.Join(ep.StateDir(), epObj)
+	//opts, strings := ELFSubstitutions(ep)
+	//if err = template.Write(dstPath, opts, strings); err != nil {
+	//	stats.BpfWriteELF.End(err == nil)
+	//	return err
+	//}
+	//stats.BpfWriteELF.End(err == nil)
+	//logging.DefaultLogger.WithField("dstPath", dstPath).
+	//	WithField("template", path.Join(dirs.Output, defaults.TemplatePath)).Debug("BpfWriteELF")
+
 	stats.BpfLoadProg.Start()
 	err = l.reloadDatapath(ctx, ep, dirs)
 	stats.BpfLoadProg.End(err == nil)
