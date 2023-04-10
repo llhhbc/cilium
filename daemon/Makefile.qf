@@ -1,4 +1,10 @@
 
+build-arm:
+	skopeo copy --insecure-policy --override-os linux --override-arch arm64 docker://quay.io/cilium/cilium:v1.12.7 docker://registry.woqutech.com/woqutech/cilium-cilium:v1.12.7-arm
+	GOOS=linux GOARCH=arm64 go build ./
+	docker buildx build --build-arg ARMFLAG="-arm" -t registry.woqutech.com/woqutech/cilium-cilium:v1.12.7-ipam-vpc-arm -f Dockerfile.qf --push .
+	rm -f ./daemon
+
 build:
 	GOOS=linux go build ./
 	docker buildx build  -t registry.woqutech.com/woqutech/cilium-cilium:v1.12.7-ipam-vpc -f Dockerfile.qf --push .

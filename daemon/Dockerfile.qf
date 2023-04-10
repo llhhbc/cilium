@@ -1,2 +1,3 @@
-from registry.woqutech.com/woqutech/cilium-cilium:v1.12.7
+ARG ARMFLAG=""
+from registry.woqutech.com/woqutech/cilium-cilium:v1.12.7${ARMFLAG}
 COPY ./daemon /usr/bin/cilium-agent
