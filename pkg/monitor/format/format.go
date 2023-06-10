@@ -9,6 +9,7 @@ import (
 	"encoding/gob"
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	"github.com/cilium/cilium/pkg/byteorder"
 	"github.com/cilium/cilium/pkg/hubble/parser/getters"
@@ -231,7 +232,7 @@ func (m *MonitorFormatter) agentEvents(prefix string, data []byte) {
 // bpf.PerfEventSample. Exceptions are MessageTypeAccessLog and
 // MessageTypeAgent.
 func (m *MonitorFormatter) FormatSample(data []byte, cpu int) {
-	prefix := fmt.Sprintf("CPU %02d:", cpu)
+	prefix := fmt.Sprintf("CPU %02d:%d", cpu, time.Now().UnixNano())
 	messageType := data[0]
 
 	fmt.Printf("data type: %d, data: %s. ", messageType, hex.EncodeToString(data))

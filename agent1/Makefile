@@ -12,3 +12,7 @@ build-arm:
 	docker buildx use mybuild
 	docker buildx build --platform=linux/arm64 --push -t registry.woqutech.com/longhui.li/mycilium:ipam-vpc-arm .
 # 	skopeo copy --insecure-policy --override-os linux --override-arch arm64 --dest-tls-verify=false docker://registry.woqutech.com/longhui.li/mycilium:ipam-vpc-arm docker://124.70.148.62:5000/woqutech/mycilium:ipam-vpc-arm
+
+build-cli:
+	GOOS=linux go build ../cilium
+	docker buildx build -t registry.woqutech.com/longhui.li/mycilium:mytest-cli --push .
