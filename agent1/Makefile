@@ -15,4 +15,4 @@ build-arm:
 
 build-cli:
 	GOOS=linux go build ../cilium
-	docker buildx build -t registry.woqutech.com/longhui.li/mycilium:mytest-cli --push .
+	docker buildx build -t registry.woqutech.com/longhui.li/mycilium:mytest-cli -f Dockerfile_cli --push .
