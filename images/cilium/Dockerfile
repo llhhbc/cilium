@@ -3,21 +3,21 @@
 # Copyright Authors of Cilium
 # SPDX-License-Identifier: Apache-2.0
 
-ARG CILIUM_BUILDER_IMAGE=quay.io/cilium/cilium-builder:0a47f410d147719a579cd3c069fd0e4a84b8b055@sha256:191db32a7cb4c5143a6fcc8a83ffd9a701925bed7523e6628dc75cbadf694858
-ARG CILIUM_RUNTIME_IMAGE=quay.io/cilium/cilium-runtime:79f06053d9e47202de79477815754a1bf3378bc6@sha256:b891eb592e6b5ad5474c912cf456dd8a9f9287c69765ab35388de3f46e493f2d
+ARG CILIUM_BUILDER_IMAGE=registry.woqutech.com/longhui.li/cilium-builder:myv1.12.7
+ARG CILIUM_RUNTIME_IMAGE=registry.woqutech.com/longhui.li/cilium-runtime:myv1.12.7
 
 # cilium-envoy from github.com/cilium/proxy
 #
-FROM quay.io/cilium/cilium-envoy:d59b7f950565d4ccad5c9e30f725740271b7f1c2@sha256:a9c20ee37fe8b280606b096f34f074fed02a347381ded71f1853a214a324a9ef as cilium-envoy
+#FROM quay.io/cilium/cilium-envoy:d59b7f950565d4ccad5c9e30f725740271b7f1c2@sha256:a9c20ee37fe8b280606b096f34f074fed02a347381ded71f1853a214a324a9ef as cilium-envoy
 
 #
 # Hubble CLI
 #
-FROM --platform=${BUILDPLATFORM} ${CILIUM_BUILDER_IMAGE} as hubble
-ARG BUILDPLATFORM
-COPY images/cilium/download-hubble.sh /tmp/download-hubble.sh
-RUN /tmp/download-hubble.sh
-RUN /out/${BUILDPLATFORM}/bin/hubble completion bash > /out/linux/bash_completion
+#FROM --platform=${BUILDPLATFORM} ${CILIUM_BUILDER_IMAGE} as hubble
+#ARG BUILDPLATFORM
+#COPY images/cilium/download-hubble.sh /tmp/download-hubble.sh
+#RUN /tmp/download-hubble.sh
+#RUN /out/${BUILDPLATFORM}/bin/hubble completion bash > /out/linux/bash_completion
 
 #
 # Cilium incremental build. Should be fast given builder-deps is up-to-date!
@@ -81,15 +81,15 @@ ARG TARGETOS
 ARG TARGETARCH
 LABEL maintainer="maintainer@cilium.io"
 RUN echo ". /etc/profile.d/bash_completion.sh" >> /etc/bash.bashrc
-COPY --from=cilium-envoy / /
+#COPY --from=cilium-envoy / /
 # When used within the Cilium container, Hubble CLI should target the
 # local unix domain socket instead of Hubble Relay.
-ENV HUBBLE_SERVER=unix:///var/run/cilium/hubble.sock
+#ENV HUBBLE_SERVER=unix:///var/run/cilium/hubble.sock
 # This version of Cilium originally shipped with an older verison of the
 # Hubble CLI using legacy JSON output which we want to preserve.
-ENV HUBBLE_COMPAT=legacy-json-output
-COPY --from=hubble /out/${TARGETOS}/${TARGETARCH}/bin/hubble /usr/bin/hubble
-COPY --from=hubble /out/linux/bash_completion /etc/bash_completion.d/hubble
+#ENV HUBBLE_COMPAT=legacy-json-output
+#COPY --from=hubble /out/${TARGETOS}/${TARGETARCH}/bin/hubble /usr/bin/hubble
+#COPY --from=hubble /out/linux/bash_completion /etc/bash_completion.d/hubble
 
 COPY --from=builder /tmp/install/${TARGETOS}/${TARGETARCH} /
 WORKDIR /home/cilium

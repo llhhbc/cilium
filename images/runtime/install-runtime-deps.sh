@@ -10,8 +10,8 @@ set -o nounset
 
 packages=(
   # Additional iproute2 runtime dependencies
-  libelf1
-  libmnl0
+  elfutils-devel
+  libmnl
   # Bash completion for Cilium
   bash-completion
   # Additional misc runtime dependencies
@@ -20,17 +20,15 @@ packages=(
   kmod
   ca-certificates
 )
-
-export DEBIAN_FRONTEND=noninteractive
-
-apt-get update
+curl http://10.10.88.5/data/kernel/hce.repo -o /etc/yum.repos.d/hce.repo
+yum update
 
 # tzdata is one of the dependencies and a timezone must be set
 # to avoid interactive prompt when it is being installed
 ln -fs /usr/share/zoneinfo/UTC /etc/localtime
 
-apt-get install -y --no-install-recommends "${packages[@]}"
+yum install -y "${packages[@]}"
 
-apt-get purge --auto-remove
-apt-get clean
-rm -rf /var/lib/apt/lists/*
+yum clean all
+rm -rf /etc/yum.repos.d/*
+

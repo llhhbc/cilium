@@ -14,6 +14,7 @@ if [[ "${arch}" == "aarch64" ]]; then
   arch="aarch_64"
 fi
 
+export https_proxy=http://10.10.80.176:7890
 curl --fail --show-error --silent --location \
   "https://github.com/protocolbuffers/protobuf/releases/download/v${protoc_version}/protoc-${protoc_version}-linux-${arch}.zip" \
     --output /tmp/protoc.zip
