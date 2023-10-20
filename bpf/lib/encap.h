@@ -144,7 +144,7 @@ __encap_with_nodeid(struct __ctx_buff *ctx, __u32 tunnel_endpoint,
 
 	cilium_dbg(ctx, DBG_ENCAP, node_id, seclabel);
 
-	ret = ctx_set_tunnel_key(ctx, &key, sizeof(key), BPF_F_ZERO_CSUM_TX);
+	ret = ctx_set_tunnel_key(ctx, &key, sizeof(key), 0);
 	if (unlikely(ret < 0))
 		return DROP_WRITE_ERROR;
 
