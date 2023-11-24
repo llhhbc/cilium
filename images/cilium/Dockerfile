@@ -74,6 +74,21 @@ COPY images/cilium/init-container.sh \
 # built while allowing the new versions to make changes that are not
 # backwards compatible.
 #
+
+FROM --platform=$BUILDPLATFORM registry.woqutech.com/library/golang:1.19 as pwswitch
+ARG TARGETOS
+ARG TARGETARCH
+
+RUN curl http://mirrors.woqutech.com/download/qfusion/files/bin/crypto/fpge_$TARGETARCH -o /usr/local/bin/fpge && chmod +x /usr/local/bin/fpge
+RUN curl http://mirrors.woqutech.com/download/qfusion/files/bin/crypto/pwswitch_${TARGETARCH} -o /usr/local/bin/pwswitch && \
+    chmod +x /usr/local/bin/pwswitch
+
+COPY --from=builder /tmp/install/${TARGETOS}/${TARGETARCH}/usr/bin/cilium-agent /usr/bin/cilium-agent
+
+RUN echo '/usr/bin/cilium-agent' > chain.tmp
+RUN fpge chain.tmp
+RUN chown -R 400 /etc/bfb
+
 FROM ${CILIUM_RUNTIME_IMAGE}
 # TARGETOS is an automatic platform ARG enabled by Docker BuildKit.
 ARG TARGETOS
@@ -90,6 +105,9 @@ RUN echo ". /etc/profile.d/bash_completion.sh" >> /etc/bash.bashrc
 #ENV HUBBLE_COMPAT=legacy-json-output
 #COPY --from=hubble /out/${TARGETOS}/${TARGETARCH}/bin/hubble /usr/bin/hubble
 #COPY --from=hubble /out/linux/bash_completion /etc/bash_completion.d/hubble
+
+COPY --from=pwswitch /usr/local/bin/pwswitch /usr/bin/pwswitch
+COPY --from=pwswitch /etc/bfb/.bfbase /etc/bfb/.bfbase
 
 COPY --from=builder /tmp/install/${TARGETOS}/${TARGETARCH} /
 WORKDIR /home/cilium
