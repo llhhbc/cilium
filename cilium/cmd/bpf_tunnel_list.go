@@ -44,4 +44,35 @@ var bpfTunnelListCmd = &cobra.Command{
 func init() {
 	bpfTunnelCmd.AddCommand(bpfTunnelListCmd)
 	command.AddOutputOption(bpfTunnelListCmd)
+	bpfTunnelCmd.AddCommand(bpfTunnelSetCmd)
+	command.AddOutputOption(bpfTunnelSetCmd)
+
+	bpfTunnelSetCmd.Flags().IP("endpointCidr", nil, "tunnel endpoint cidr. ")
+	bpfTunnelSetCmd.Flags().IP("destIp", nil, "tunnel dest ip. ")
+}
+
+var bpfTunnelSetCmd = &cobra.Command{
+	Use:     "set",
+	Aliases: []string{"set"},
+	Short:   "Set tunnel endpoint ",
+	Run: func(cmd *cobra.Command, args []string) {
+		common.RequireRootPrivilege("cilium bpf tunnel set")
+
+		endpointCidr, err := cmd.Flags().GetIP("endpointCidr")
+		if err != nil {
+			log.Errorf("endpoint cidr must set. ")
+			os.Exit(1)
+		}
+		destIp, err := cmd.Flags().GetIP("destIp")
+		if err != nil {
+			log.Errorf("destIP must set. ")
+			os.Exit(1)
+		}
+
+		err = tunnel.TunnelMap.SetTunnelEndpoint(0, endpointCidr, destIp)
+		if err != nil {
+			log.Errorf("set tunnel endpoint failed %v. ", err)
+		}
+		log.Printf("set tunnel ok. ")
+	},
 }
