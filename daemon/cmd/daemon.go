@@ -297,6 +297,7 @@ func (d *Daemon) restoreCiliumHostIPs(ipv6 bool, fromK8s net.IP) {
 		case ipamOption.IPAMCRD:
 			// The native routing CIDR is the pod CIDR in CRD mode.
 			cidrs = []*cidr.CIDR{option.Config.GetIPv4NativeRoutingCIDR()}
+			cidrs = append(d.ipam.GetVpcCIDRs(), cidrs...) // merge cidr config
 		case ipamOption.IPAMENI, ipamOption.IPAMAzure, ipamOption.IPAMAlibabaCloud:
 			// d.startIPAM() has already been called at this stage to initialize sharedNodeStore with ownNode info
 			// needed for GetVpcCIDRs()

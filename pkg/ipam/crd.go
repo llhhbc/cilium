@@ -217,6 +217,8 @@ func newNodeStore(nodeName string, conf Configuration, owner Owner, k8sEventReg 
 }
 
 func deriveVpcCIDRs(node *ciliumv2.CiliumNode) (primaryCIDR *cidr.CIDR, secondaryCIDRs []*cidr.CIDR) {
+	l := log.WithField(fieldName, "deriveVpcCIDRs")
+
 	if len(node.Status.ENI.ENIs) > 0 {
 		// A node belongs to a single VPC so we can pick the first ENI
 		// in the list and derive the VPC CIDR from it.
@@ -249,6 +251,18 @@ func deriveVpcCIDRs(node *ciliumv2.CiliumNode) (primaryCIDR *cidr.CIDR, secondar
 		if err == nil {
 			primaryCIDR = c
 			return
+		}
+	}
+	l = l.WithField("ipamCidr", node.Spec.IPAM.PodCIDRs)
+	l.Infof("begin to check ipam cidr. ")
+	if len(node.Spec.IPAM.PodCIDRs) > 0 {
+		for _, ipamCidr := range node.Spec.IPAM.PodCIDRs {
+			c, err := cidr.ParseCIDR(ipamCidr)
+			l.Infof("load ipamcidr %s ok. %v, %v. ", ipamCidr, c, err)
+			if err == nil {
+				primaryCIDR = c
+				return
+			}
 		}
 	}
 	return
