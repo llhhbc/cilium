@@ -357,7 +357,9 @@ func (d *Daemon) createEndpoint(ctx context.Context, owner regeneration.Owner, e
 		if err != nil {
 			return invalidDataError(ep, err)
 		} else if oldEp != nil {
-			return invalidDataError(ep, fmt.Errorf("IP %s is already in use", id))
+			if oldEp.K8sPodName != ep.K8sPodName && oldEp.K8sNamespace != ep.K8sNamespace {
+				return invalidDataError(ep, fmt.Errorf("IP %s is already in use by %s ", id, ep.K8sPodName))
+			}
 		}
 	}
 
