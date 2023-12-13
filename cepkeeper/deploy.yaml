@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  generation: 1
+  labels:
+    app.kubernetes.io/name: cilium-cep-keeper
+  name: cilium-cep-keeper
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cilium-cep-keeper
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cilium-cep-keeper
+    spec:
+      containers:
+        - args:
+          - --labelSector={"matchExpressions":[{"key":"AppName","operator":"Exists"}]}
+          image: registry.woqutech.com/woqutech/cepkeeper:v1.0.0
+          imagePullPolicy: IfNotPresent
+          name: keeper
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /etc/localtime
+              name: localtime
+      dnsPolicy: ClusterFirst
+      hostNetwork: true
+      nodeSelector:
+        qfusion/master: "true"
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 1337
+      serviceAccount: dboperator
+      serviceAccountName: dboperator
+      terminationGracePeriodSeconds: 30
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+          operator: Exists
+        - effect: NoSchedule
+          key: qfusion/master
+          operator: Exists
+      volumes:
+        - hostPath:
+            path: /usr/share/zoneinfo/Asia/Shanghai
+            type: ""
+          name: localtime
