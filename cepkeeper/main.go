@@ -136,8 +136,8 @@ func cleanUnusedCep(slel labels.Selector) error {
 			mlog.Warningf("get invalid cep annotation. %s/%s. ", cep.Name, cep.Namespace)
 			continue
 		}
-		_, err = stsLister.StatefulSets(cep.Namespace).Get(stsNames[1])
-		if errors.IsNotFound(err) {
+		sts, err := stsLister.StatefulSets(cep.Namespace).Get(stsNames[1])
+		if errors.IsNotFound(err) || (sts.Spec.Replicas != nil && *sts.Spec.Replicas == 0) {
 			l := mlog.WithField("sts", stsNames[1]).
 				WithField("cep", cep.Name).WithField("ns", cep.Namespace)
 			l.Infof("sts is not found, clean cep. ")
