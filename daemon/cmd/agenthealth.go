@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/cilium/cilium/pkg/node/types"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 
@@ -47,6 +48,7 @@ func (d *Daemon) startAgentHealthHTTPService() {
 
 		w.WriteHeader(statusCode)
 	}))
+	mux.HandleFunc("/node/cidr/info", types.NodeCidrHandlerFunc)
 
 	available := len(hosts)
 	for _, host := range hosts {

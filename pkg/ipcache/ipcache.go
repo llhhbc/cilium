@@ -291,7 +291,7 @@ func (ipc *IPCache) upsertLocked(
 		if err != nil {
 			scopedLog.WithError(err).Errorln("Get pod info by k8s meta failed, skip rewrite hostip. ", k8sMeta)
 		} else {
-			nextIP := types.GetNodeVpcAddr(pod.Spec.NodeName)
+			nextIP := types.GetNodeVpcAddrByCache(pod.Spec.NodeName)
 			if nextIP != nil {
 				scopedLog.Debugf("Rewrite hostip from %s to %s. ", hostIP.String(), nextIP.String())
 				hostIP = nextIP

@@ -4,17 +4,21 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/cilium/cilium/pkg/bpf"
+	"github.com/cilium/cilium/pkg/maps/ipcache"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	v12 "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/tools/cache"
 )
 
 const VpcLabel = "vpc.id"
@@ -48,25 +52,27 @@ func InitVpc(k8sClient kubernetes.Interface) error {
 	nodeLister = shardFactory.Core().V1().Nodes().Lister()
 	PodLister = shardFactory.Core().V1().Pods().Lister()
 
-	//shardFactory.Core().V1().Nodes().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-	//	AddFunc: func(obj interface{}) {
-	//		n, ok := obj.(*corev1.Node)
-	//		if !ok {
-	//			return
-	//		}
-	//		syncNodeTunnelCache(n)
-	//	},
-	//	UpdateFunc: func(oldObj, newObj interface{}) {
-	//		n, ok := newObj.(*corev1.Node)
-	//		if !ok {
-	//			return
-	//		}
-	//		syncNodeTunnelCache(n)
-	//	},
-	//	DeleteFunc: func(obj interface{}) {
-	//		// no need
-	//	},
-	//})
+	shardFactory.Core().V1().Nodes().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			n, ok := obj.(*corev1.Node)
+			if !ok {
+				log.Warningf("get invalid node %v. ", obj)
+				return
+			}
+			syncNodeTunnelCache(n)
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			n, ok := newObj.(*corev1.Node)
+			if !ok {
+				log.Warningf("get invalid node %v. ", newObj)
+				return
+			}
+			syncNodeTunnelCache(n)
+		},
+		DeleteFunc: func(obj interface{}) {
+			// no need
+		},
+	})
 
 	go shardFactory.Start(context.Background().Done())
 
@@ -75,6 +81,8 @@ func InitVpc(k8sClient kubernetes.Interface) error {
 			log.Errorf("Init vpc sharedFactory failed to wait %v ready", t)
 		}
 	}
+
+	go syncIpCacheInfo()
 
 	log.Debugf("Init vpc mod done.")
 	return nil
@@ -209,50 +217,44 @@ mater节点，不同vpc时，缓存外部地址
 不需要
 */
 
-var nodeTunnelCache sync.Map // key: nodeName, value: ip
-
-var localVpcId = ""
-
-var selfIsMaster *bool
+var NodeCidrCache sync.Map   // key: nodeName, value: node cidr
+var NodeCidrConvert sync.Map // key: node cidr, value: dest ip
 
 func syncNodeTunnelCache(node *corev1.Node) {
+	log.Debugf("sync node %s. ", node.Name)
+	l := log.WithField("nodeName", node.Name)
 	if node.Labels == nil || node.Annotations == nil {
+		l.Debugf("skip node without label. ")
 		return
 	}
 
-	if selfIsMaster != nil && *selfIsMaster {
+	if selfVpcId == "" { // self is master
+		l.Debugf("skip node for master. ")
 		return
 	}
 
 	if node.Name == GetName() {
-		f := IsMaster(node.Name)
-		selfIsMaster = &f
-		if localVpcId == "" {
-			localVpcId = node.Labels[VpcLabel]
-		}
+		l.Debugf("skip self node. ")
+		return
 	}
 
 	isMaster := IsMaster2(node)
-	if node.Labels[VpcLabel] != localVpcId && !isMaster {
+	if node.Labels[VpcLabel] != selfVpcId && !isMaster {
+		l.Debugf("skip node vpc id not same. %s. ", node.Labels[VpcLabel])
 		return // skip
 	}
+	NodeCidrCache.Store(node.Name, node.Spec.PodCIDR)
 	newIp := GetNodeVpcAddr(node.Name)
-	cur, ok := nodeTunnelCache.Load(node.Name)
-	if !ok {
-		nodeTunnelCache.Store(node.Name, newIp)
-		return
-	}
-	oldIp, ok := cur.(net.IP)
-	if ok && oldIp.Equal(newIp) {
-		return
-	}
-	nodeTunnelCache.Store(node.Name, newIp)
+	NodeCidrConvert.Store(node.Spec.PodCIDR, newIp)
 }
 
 func GetNodeVpcAddrByCache(nodeName string) net.IP {
-	cur, ok := nodeTunnelCache.Load(nodeName)
+	cur, ok := NodeCidrCache.Load(nodeName)
 	if ok {
-		return cur.(net.IP)
+		res, ok := NodeCidrConvert.Load(cur)
+		if ok {
+			return res.(net.IP)
+		}
 	}
 	return nil
 }
@@ -281,6 +283,8 @@ func waitCiliumNodeToLabel(k8sClient kubernetes.Interface) error {
 	return fmt.Errorf("get ciliumnodes timeout. ")
 }
 
+var selfVpcId = ""
+
 func isNodeOk(k8sClient kubernetes.Interface) (bool, error) {
 	node, err := k8sClient.CoreV1().Nodes().Get(context.TODO(), nodeName, v1.GetOptions{})
 	if err != nil {
@@ -293,8 +297,81 @@ func isNodeOk(k8sClient kubernetes.Interface) (bool, error) {
 
 	if node.Labels != nil && node.Annotations != nil {
 		if node.Labels[VpcLabel] != "" {
+			selfVpcId = node.Labels[VpcLabel]
+			log.Infof("load self vpc id ok: %s. ", selfVpcId)
 			return true, nil
 		}
 	}
 	return false, nil
+}
+
+func NodeCidrHandlerFunc(writer http.ResponseWriter, request *http.Request) {
+	writer.Write([]byte(getNodeVpcInfo()))
+}
+
+func getNodeVpcInfo() string {
+	var res strings.Builder
+	res.WriteString(fmt.Sprintf("node info:\n"))
+	NodeCidrCache.Range(func(key, value any) bool {
+		res.WriteString(fmt.Sprintf("%s: %s\n", key, value))
+		return true
+	})
+	res.WriteString("node cidr convert:\n")
+	NodeCidrConvert.Range(func(key, value any) bool {
+		res.WriteString(fmt.Sprintf("%s: %s\n", key, value))
+		return true
+	})
+
+	return res.String()
+}
+
+func syncIpCacheInfo() {
+	var err error
+	var ipMask *net.IPNet
+	l := log.WithField("mode", "syncIpCacheInfo")
+	for {
+		time.Sleep(time.Second * 30)
+		l.Debugf("check ip cache. ")
+
+		NodeCidrConvert.Range(func(cidr, destIpStr any) bool {
+			_, ipMask, err = net.ParseCIDR(cidr.(string))
+			if err != nil {
+				l.Errorf("skip invalid cidr %v. ", cidr)
+				return true
+			}
+			err = ipcache.IPCache.DumpWithCallback(func(key bpf.MapKey, value bpf.MapValue) {
+				lkey, ok := key.(*ipcache.Key)
+				if !ok {
+					l.Errorf("skip invliad key %v. ", key)
+					return
+				}
+				if !ipMask.Contains(lkey.IP.IP().To4()) {
+					return
+				}
+				lvalue, ok := value.(*ipcache.RemoteEndpointInfo)
+				destIp := net.ParseIP(destIpStr.(string))
+				if lvalue.TunnelEndpoint.IP().Equal(destIp) {
+					return
+				}
+				l.Warningf("%s get dest ip not match: need: %s, actual: %s, do update. ",
+					lkey.String(), destIp.String(), lvalue.TunnelEndpoint.String())
+				newCp := lvalue.DeepCopy()
+				copy(newCp.TunnelEndpoint[:], destIp.To4())
+
+				err = ipcache.IPCache.Update(key, newCp)
+				if err != nil {
+					l.Errorf("update %s from %s to %s failed %v. ",
+						lkey.String(), lvalue.TunnelEndpoint.String(), newCp.TunnelEndpoint.String(), err)
+					return
+				}
+				l.Infof("update %s from %s to %s ok. ",
+					lkey.String(), lvalue.TunnelEndpoint.String(), newCp.TunnelEndpoint.String())
+			})
+			if err != nil {
+				l.Errorf("check ip cache failed %v. ", err)
+			}
+			return true
+		})
+
+	}
 }
