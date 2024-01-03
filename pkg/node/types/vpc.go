@@ -137,6 +137,17 @@ func IsSameVpc(label string) bool {
 	return false
 }
 
+func GetNodeVpcAddrDebug(nodeName string) net.IP {
+	cacheIp := GetNodeVpcAddrByCache(nodeName)
+	labelIp := GetNodeVpcAddr(nodeName)
+
+	if !cacheIp.Equal(labelIp) {
+		log.Warningf("GetNodeVpcAddrDebug: cache ip %s not match label ip %s. ",
+			cacheIp.String(), labelIp.String())
+	}
+	return labelIp
+}
+
 func GetNodeVpcAddr(nodeName string) net.IP {
 	if nodeLister == nil {
 		log.Warningf("Node vpc lister is not init, skip. ")
@@ -339,18 +350,23 @@ func syncIpCacheInfo() {
 				l.Errorf("skip invalid cidr %v. ", cidr)
 				return true
 			}
+			l.Debugf("check %v, %s, %v. ", cidr, ipMask.String(), destIpStr)
 			err = ipcache.IPCache.DumpWithCallback(func(key bpf.MapKey, value bpf.MapValue) {
 				lkey, ok := key.(*ipcache.Key)
 				if !ok {
 					l.Errorf("skip invliad key %v. ", key)
 					return
 				}
+				l.Debugf("check cache %v, %v. ", key.String(), value.String())
 				if !ipMask.Contains(lkey.IP.IP().To4()) {
+					l.Debugf("skip mask not match. ")
 					return
 				}
 				lvalue, ok := value.(*ipcache.RemoteEndpointInfo)
 				destIp := net.ParseIP(destIpStr.(string))
+				l.Debugf("check destIP %s,%v, %v. ", destIpStr, destIp.String(), lvalue.String())
 				if lvalue.TunnelEndpoint.IP().Equal(destIp) {
+					l.Debugf("skip dest ip equal. ")
 					return
 				}
 				l.Warningf("%s get dest ip not match: need: %s, actual: %s, do update. ",
