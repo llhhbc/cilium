@@ -49,6 +49,7 @@ func (d *Daemon) startAgentHealthHTTPService() {
 		w.WriteHeader(statusCode)
 	}))
 	mux.HandleFunc("/node/cidr/info", types.NodeCidrHandlerFunc)
+	mux.HandleFunc("/node/config/log", changeLogLevel)
 
 	available := len(hosts)
 	for _, host := range hosts {
@@ -82,4 +83,18 @@ func (d *Daemon) startAgentHealthHTTPService() {
 	if available <= 0 {
 		log.WithField("hosts", hosts).Fatal("No healthz status API server started")
 	}
+}
+
+func changeLogLevel(writer http.ResponseWriter, request *http.Request) {
+	level := request.URL.Query().Get("level")
+	newLevel, err := logrus.ParseLevel(level)
+	if err != nil {
+		writer.Write([]byte(fmt.Sprintf("get invalid level %s. ", level)))
+		writer.WriteHeader(500)
+		return
+	}
+	log.Infof("change log level from %s to %s. ", log.Level.String(), newLevel.String())
+	log.Level = newLevel
+	log.Logger.Level = newLevel
+	writer.Write([]byte(fmt.Sprintf("set level %s ok. ", newLevel.String())))
 }

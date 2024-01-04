@@ -344,50 +344,65 @@ func syncIpCacheInfo() {
 		time.Sleep(time.Second * 30)
 		l.Debugf("check ip cache. ")
 
-		NodeCidrConvert.Range(func(cidr, destIpStr any) bool {
+		itemToUpdate := make(map[*ipcache.Key]*ipcache.RemoteEndpointInfo)
+
+		NodeCidrConvert.Range(func(cidr, destIp any) bool {
 			_, ipMask, err = net.ParseCIDR(cidr.(string))
 			if err != nil {
 				l.Errorf("skip invalid cidr %v. ", cidr)
 				return true
 			}
-			l.Debugf("check %v, %s, %v. ", cidr, ipMask.String(), destIpStr)
+			//l.Debugf("check %v, %s, %v. ", cidr, ipMask.String(), destIp)
 			err = ipcache.IPCache.DumpWithCallback(func(key bpf.MapKey, value bpf.MapValue) {
 				lkey, ok := key.(*ipcache.Key)
 				if !ok {
 					l.Errorf("skip invliad key %v. ", key)
 					return
 				}
-				l.Debugf("check cache %v, %v. ", key.String(), value.String())
-				if !ipMask.Contains(lkey.IP.IP().To4()) {
-					l.Debugf("skip mask not match. ")
+				//l.Debugf("check cache %v, %v. ", key.String(), value.String())
+				lipNet := lkey.IPNet()
+				if !ipMask.Contains(lipNet.IP) {
+					//l.Debugf("skip mask not match. %s,%s. ", lipNet.IP.String(), ipMask.String())
 					return
 				}
 				lvalue, ok := value.(*ipcache.RemoteEndpointInfo)
-				destIp := net.ParseIP(destIpStr.(string))
-				l.Debugf("check destIP %s,%v, %v. ", destIpStr, destIp.String(), lvalue.String())
-				if lvalue.TunnelEndpoint.IP().Equal(destIp) {
-					l.Debugf("skip dest ip equal. ")
+				if !ok {
+					l.Errorf("skip invalid endpoint info %v. ", value)
+					return
+				}
+				desNetIp, ok := destIp.(net.IP)
+				if !ok {
+					l.Errorf("get invalid dest ip %v. ", destIp)
+					return
+				}
+				//l.Debugf("check destIP %s,%v, %v. ", desNetIp, desNetIp.String(), lvalue.String())
+				if lvalue.TunnelEndpoint.IP().Equal(desNetIp) {
+					//l.Debugf("skip dest ip equal. ")
 					return
 				}
 				l.Warningf("%s get dest ip not match: need: %s, actual: %s, do update. ",
-					lkey.String(), destIp.String(), lvalue.TunnelEndpoint.String())
+					lkey.String(), desNetIp.String(), lvalue.TunnelEndpoint.String())
 				newCp := lvalue.DeepCopy()
-				copy(newCp.TunnelEndpoint[:], destIp.To4())
+				copy(newCp.TunnelEndpoint[:], desNetIp.To4())
 
-				err = ipcache.IPCache.Update(key, newCp)
-				if err != nil {
-					l.Errorf("update %s from %s to %s failed %v. ",
-						lkey.String(), lvalue.TunnelEndpoint.String(), newCp.TunnelEndpoint.String(), err)
-					return
-				}
-				l.Infof("update %s from %s to %s ok. ",
-					lkey.String(), lvalue.TunnelEndpoint.String(), newCp.TunnelEndpoint.String())
+				itemToUpdate[lkey.DeepCopy()] = newCp
 			})
 			if err != nil {
 				l.Errorf("check ip cache failed %v. ", err)
 			}
 			return true
 		})
+
+		for k, v := range itemToUpdate {
+			err = ipcache.IPCache.Update(k, v)
+			if err != nil {
+				l.Errorf("update %s to %s failed %v. ",
+					k.String(), v.TunnelEndpoint.String(), err)
+				return
+			}
+			l.Infof("update %s to %s ok. ",
+				k.String(), v.TunnelEndpoint.String())
+		}
 
 	}
 }
