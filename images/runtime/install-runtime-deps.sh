@@ -21,7 +21,7 @@ packages=(
   ca-certificates
 )
 curl http://10.10.88.5/data/kernel/hce.repo -o /etc/yum.repos.d/hce.repo
-yum update
+yum update -y
 
 # tzdata is one of the dependencies and a timezone must be set
 # to avoid interactive prompt when it is being installed

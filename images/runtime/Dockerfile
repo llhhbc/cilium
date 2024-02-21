@@ -64,8 +64,10 @@ COPY --from=iproute2-dist /usr/local /usr/local
 ARG TARGETPLATFORM
 COPY --from=gops-cni-builder /out/${TARGETPLATFORM}/bin/loopback /cni/loopback
 COPY --from=gops-cni-builder /out/${TARGETPLATFORM}/bin/gops /bin/gops
+RUN rm -f /usr/bin/{readelf,cpp,gcc,objdump}
 
 #
-#FROM scratch
-#LABEL maintainer="maintainer@cilium.io"
-#COPY --from=rootfs / /
+FROM scratch
+LABEL maintainer="maintainer@cilium.io"
+COPY --from=rootfs / /
+

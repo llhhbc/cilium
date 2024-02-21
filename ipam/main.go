@@ -36,7 +36,7 @@ var mlog = logging.DefaultLogger.WithField(logfields.LogSubsys, "my-ipam")
 
 var (
 	ciliumNodeLister v22.CiliumNodeLister
-	ciliumClientset *versioned.Clientset
+	ciliumClientset  *versioned.Clientset
 
 	stsLister v13.StatefulSetLister
 	podLister v14.PodLister
@@ -44,9 +44,10 @@ var (
 
 var (
 	labelSector = pflag.String("labelSector", `{"matchLabels":{"noStatic":"true"}}`, "LabelSelectorRequirement json")
+	ipRateNum   = pflag.Int("ipRateNum", 256, "free ip rate. ")
 )
 
-func main()  {
+func main() {
 	kf := flag.NewFlagSet("klog", flag.PanicOnError)
 	klog.InitFlags(kf)
 
@@ -75,7 +76,7 @@ func main()  {
 	sharedInformer := informers.NewSharedInformerFactory(clientset, time.Minute)
 	ciliumSharedInformer := externalversions.NewSharedInformerFactoryWithOptions(ciliumClientset, time.Minute)
 
-	podQueue :=  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "pod")
+	podQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "pod")
 	ciliumNodeQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ciliumNode")
 
 	ciliumSharedInformer.Cilium().V2().CiliumNodes().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -188,7 +189,7 @@ func main()  {
 	select {}
 }
 
-func SyncCiliumNode(cn *v2.CiliumNode) error  {
+func SyncCiliumNode(cn *v2.CiliumNode) error {
 	return DoCiliumNodeIpAlloc(ciliumClientset, cn)
 }
 
@@ -197,7 +198,7 @@ func DoCiliumNodeIpAlloc(ciliumClientset *versioned.Clientset, cn *v2.CiliumNode
 
 	updateFlag := false
 	l = l.WithField("from", len(cn.Spec.IPAM.Pool)).WithField("used", len(cn.Status.IPAM.Used))
-	if len(cn.Spec.IPAM.Pool) - len(cn.Status.IPAM.Used) <= 10 || countFreeIP(cn) <= 10 {
+	if len(cn.Spec.IPAM.Pool)-len(cn.Status.IPAM.Used) <= *ipRateNum || countFreeIP(cn) <= *ipRateNum {
 		updateFlag = DoAllocate(l, cn)
 	}
 	l = l.WithField("to", len(cn.Spec.IPAM.Pool))
@@ -217,7 +218,7 @@ func DoCiliumNodeIpAlloc(ciliumClientset *versioned.Clientset, cn *v2.CiliumNode
 	return nil
 }
 
-func countFreeIP(cn *v2.CiliumNode) int  {
+func countFreeIP(cn *v2.CiliumNode) int {
 	free := 0
 	for k, v := range cn.Spec.IPAM.Pool {
 		if v.Owner != "" {
@@ -226,7 +227,7 @@ func countFreeIP(cn *v2.CiliumNode) int  {
 		if cn.Status.IPAM.Used != nil && cn.Status.IPAM.Used[k].Owner != "" {
 			continue
 		}
-		free ++
+		free++
 	}
 	return free
 }
@@ -256,12 +257,15 @@ func DoAllocate(l *logrus.Entry, cn *v2.CiliumNode) bool {
 			idx++
 			continue
 		}
-		if addStep >= 10 {
+		if addStep >= *ipRateNum {
 			break
 		}
 		cn.Spec.IPAM.Pool[ip.String()] = types.AllocationIP{}
 
 		addStep++
+	}
+	if addStep == 0 {
+		return false
 	}
 	l.Infof("will expand ip to %d. ", len(cn.Spec.IPAM.Pool))
 	return true
@@ -310,7 +314,7 @@ func DoOwnerIpRecycle(l *logrus.Entry, cn *v2.CiliumNode) (needUpdate bool) {
 	return
 }
 
-func InitCiliumNodes() error  {
+func InitCiliumNodes() error {
 	cnList, err := ciliumClientset.CiliumV2().CiliumNodes().List(context.TODO(), v1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("get cilium node list failed %v. ", err)
