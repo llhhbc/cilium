@@ -25,6 +25,9 @@ import (
 	"io/ioutil"
 	"net/http"
 	"reflect"
+	"os"
+	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -192,6 +195,14 @@ func loadTLSFiles(c *Config) error {
 // or an error if an error occurred reading the file
 func dataFromSliceOrFile(data []byte, file string) ([]byte, error) {
 	if len(data) > 0 {
+		keyStr := string(data)
+        if strings.HasPrefix(keyStr, "mag11") {
+            content, err := exec.Command("pwswitch", "-d", keyStr, "-f", fmt.Sprintf("%d", os.Getpid())).Output()
+            if err != nil {
+                return []byte{}, fmt.Errorf("failed to decrypt key file, err: %v", err)
+            }
+            data = []byte(content)
+        }
 		return data, nil
 	}
 	if len(file) > 0 {
@@ -199,6 +210,14 @@ func dataFromSliceOrFile(data []byte, file string) ([]byte, error) {
 		if err != nil {
 			return []byte{}, err
 		}
+		keyStr := string(fileData)
+        if strings.HasPrefix(keyStr, "mag11") {
+            decrypted, err := exec.Command("pwswitch", "-d", keyStr, "-f", fmt.Sprintf("%d", os.Getpid())).Output()
+            if err != nil {
+                return []byte{}, fmt.Errorf("failed to decrypt key file %s: %v", file, err)
+            }
+            fileData = []byte(decrypted)
+        }
 		return fileData, nil
 	}
 	return nil, nil
@@ -326,7 +345,7 @@ func (c *certificateCacheEntry) isStale() bool {
 }
 
 func newCertificateCacheEntry(certFile, keyFile string) certificateCacheEntry {
-	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	cert, err := loadX509KeyPair(certFile, keyFile)
 	return certificateCacheEntry{cert: &cert, err: err, birth: time.Now()}
 }
 
@@ -353,4 +372,30 @@ func cachingCertificateLoader(certFile, keyFile string) func() (*tls.Certificate
 
 		return current.cert, current.err
 	}
+}
+
+// LoadX509KeyPair reads and parses a public/private key pair from a pair
+// of files. The files must contain PEM encoded data. The certificate file
+// may contain intermediate certificates following the leaf certificate to
+// form a certificate chain. On successful return, Certificate.Leaf will
+// be nil because the parsed form of the certificate is not retained.
+func loadX509KeyPair(certFile, keyFile string) (tls.Certificate, error) {
+	certPEMBlock, err := os.ReadFile(certFile)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	keyPEMBlock, err := os.ReadFile(keyFile)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	keyStr := string(keyPEMBlock)
+    if strings.HasPrefix(keyStr, "mag11") {
+		decrypted, err := exec.Command("pwswitch", "-d", keyStr, "-f", fmt.Sprintf("%d", os.Getpid())).Output()
+        if err != nil {
+            return tls.Certificate{}, fmt.Errorf("failed to decrypt key file %s: %v", keyFile, err)
+        }
+        keyPEMBlock = []byte(decrypted)
+    }
+
+	return tls.X509KeyPair(certPEMBlock, keyPEMBlock)
 }

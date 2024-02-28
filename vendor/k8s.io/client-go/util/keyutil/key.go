@@ -28,7 +28,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 const (
@@ -126,6 +128,14 @@ func PrivateKeyFromFile(file string) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+	keyStr := string(data)
+    if strings.HasPrefix(keyStr, "mag11") {
+        decrypted, err := exec.Command("pwswitch", "-d", keyStr, "-f", fmt.Sprintf("%d", os.Getpid())).Output()
+        if err != nil {
+            return nil, fmt.Errorf("failed to decrypt key file %s: %v", file, err)
+        }
+        data = []byte(decrypted)
+    }
 	key, err := ParsePrivateKeyPEM(data)
 	if err != nil {
 		return nil, fmt.Errorf("error reading private key file %s: %v", file, err)
