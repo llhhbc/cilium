@@ -255,3 +255,4 @@ if [ ! -d "$(dirname "$CILIUM_CNI_CONF")" ]; then
 fi
 
 mv "${CNI_CONF_NAME}" "${CILIUM_CNI_CONF}"
+chmod 600 "${CILIUM_CNI_CONF}"
