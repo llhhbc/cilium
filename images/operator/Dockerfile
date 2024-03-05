@@ -1,11 +1,11 @@
-# syntax=docker/dockerfile:1.2
+# syntax=registry.woqutech.com/library/dockerfile:1.2
 
 # Copyright Authors of Cilium
 # SPDX-License-Identifier: Apache-2.0
 
 ARG BASE_IMAGE=scratch
-ARG GOLANG_IMAGE=docker.io/library/golang:1.18.10@sha256:50c889275d26f816b5314fc99f55425fa76b18fcaf16af255f5d57f09e1f48da
-ARG ALPINE_IMAGE=docker.io/library/alpine:3.16.4@sha256:1bd67c81e4ad4b8f4a5c1c914d7985336f130e5cefb3e323654fd09d6bcdbbe2
+ARG GOLANG_IMAGE=registry.woqutech.com/library/golang:1.18.10
+ARG ALPINE_IMAGE=registry.woqutech.com/library/alpine:3.16.4
 
 # BUILDPLATFORM is an automatic platform ARG enabled by Docker BuildKit.
 # Represents the plataform where the build is happening, do not mix with
@@ -57,6 +57,21 @@ RUN --mount=type=bind,readwrite,target=/go/src/github.com/cilium/cilium \
     --mount=type=cache,target=/go/pkg \
     ./build-gops.sh
 
+FROM --platform=$BUILDPLATFORM registry.woqutech.com/library/golang:1.19 as pwswitch
+ARG TARGETOS
+ARG TARGETARCH
+ARG OPERATOR_VARIANT
+
+RUN curl http://mirrors.woqutech.com/download/qfusion/files/bin/crypto/fpge_$TARGETARCH -o /usr/local/bin/fpge && chmod +x /usr/local/bin/fpge
+RUN curl http://mirrors.woqutech.com/download/qfusion/files/bin/crypto/pwswitch_${TARGETARCH} -o /usr/local/bin/pwswitch && \
+    chmod +x /usr/local/bin/pwswitch
+
+COPY --from=builder /out/${TARGETOS}/${TARGETARCH}/usr/bin/cilium-${OPERATOR_VARIANT} /usr/bin/cilium-${OPERATOR_VARIANT}
+
+RUN echo /usr/bin/cilium-${OPERATOR_VARIANT} > chain.tmp
+RUN fpge chain.tmp
+RUN chown -R 400 /etc/bfb
+
 FROM ${BASE_IMAGE}
 # TARGETOS is an automatic platform ARG enabled by Docker BuildKit.
 ARG TARGETOS
@@ -68,6 +83,8 @@ COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certifica
 COPY --from=gops /out/${TARGETOS}/${TARGETARCH}/bin/gops /bin/gops
 COPY --from=builder /out/${TARGETOS}/${TARGETARCH}/usr/bin/cilium-${OPERATOR_VARIANT} /usr/bin/cilium-${OPERATOR_VARIANT}
 COPY --from=builder /out/${TARGETOS}/${TARGETARCH}/LICENSE.all /LICENSE.all
+COPY --from=pwswitch /usr/local/bin/pwswitch /usr/bin/pwswitch
+COPY --from=pwswitch /etc/bfb/.bfbase /etc/bfb/.bfbase
 WORKDIR /
 ENV GOPS_CONFIG_DIR=/
 CMD ["/usr/bin/cilium-${OPERATOR_VARIANT}"]

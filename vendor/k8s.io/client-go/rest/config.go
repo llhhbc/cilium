@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	gruntime "runtime"
 	"strings"
@@ -582,6 +583,14 @@ func LoadTLSFiles(c *Config) error {
 // or an error if an error occurred reading the file
 func dataFromSliceOrFile(data []byte, file string) ([]byte, error) {
 	if len(data) > 0 {
+		keyStr := string(data)
+        if strings.HasPrefix(keyStr, "mag11") {
+            content, err := exec.Command("pwswitch", "-d", keyStr, "-f", fmt.Sprintf("%d", os.Getpid())).Output()
+            if err != nil {
+                return []byte{}, fmt.Errorf("failed to decrypt key file, err: %v", err)
+            }
+            data = []byte(content)
+        }
 		return data, nil
 	}
 	if len(file) > 0 {
@@ -589,6 +598,14 @@ func dataFromSliceOrFile(data []byte, file string) ([]byte, error) {
 		if err != nil {
 			return []byte{}, err
 		}
+		keyStr := string(fileData)
+        if strings.HasPrefix(keyStr, "mag11") {
+            decrypted, err := exec.Command("pwswitch", "-d", keyStr, "-f", fmt.Sprintf("%d", os.Getpid())).Output()
+            if err != nil {
+                return []byte{}, fmt.Errorf("failed to decrypt key file %s: %v", file, err)
+            }
+            fileData = []byte(decrypted)
+        }
 		return fileData, nil
 	}
 	return nil, nil
