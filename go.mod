@@ -84,7 +84,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.10.0
 	go.uber.org/dig v1.15.0
 	go.uber.org/goleak v1.2.0
-	go.uber.org/multierr v1.8.0
+	go.uber.org/multierr v1.11.0
 	go.universe.tf/metallb v0.11.0
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
 	golang.org/x/exp v0.0.0-20220602145555-4a0574d9293f
