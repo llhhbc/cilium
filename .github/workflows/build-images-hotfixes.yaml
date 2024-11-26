@@ -80,7 +80,7 @@ jobs:
           persist-credentials: false
 
       - name: Release Build ${{ matrix.name }}
-        uses: docker/build-push-action@c56af957549030174b10d6867f20e78cfd7debc5
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355
         id: docker_build_release
         with:
           context: .
