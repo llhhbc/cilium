@@ -1,13 +1,181 @@
 package btf
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 
+	"github.com/cilium/ebpf/internal"
+	"github.com/cilium/ebpf/internal/platform"
 	"github.com/cilium/ebpf/internal/sys"
 	"github.com/cilium/ebpf/internal/unix"
 )
+
+// Handle is a reference to BTF loaded into the kernel.
+type Handle struct {
+	fd *sys.FD
+
+	// Size of the raw BTF in bytes.
+	size uint32
+
+	needsKernelBase bool
+}
+
+// NewHandle loads the contents of a [Builder] into the kernel.
+//
+// Returns an error wrapping ErrNotSupported if the kernel doesn't support BTF.
+func NewHandle(b *Builder) (*Handle, error) {
+	small := getByteSlice()
+	defer putByteSlice(small)
+
+	buf, err := b.Marshal(*small, KernelMarshalOptions())
+	if err != nil {
+		return nil, fmt.Errorf("marshal BTF: %w", err)
+	}
+
+	return NewHandleFromRawBTF(buf)
+}
+
+// NewHandleFromRawBTF loads raw BTF into the kernel.
+//
+// Returns an error wrapping ErrNotSupported if the kernel doesn't support BTF.
+func NewHandleFromRawBTF(btf []byte) (*Handle, error) {
+	const minLogSize = 64 * 1024
+
+	if platform.IsWindows {
+		return nil, fmt.Errorf("btf: handle: %w", internal.ErrNotSupportedOnOS)
+	}
+
+	if uint64(len(btf)) > math.MaxUint32 {
+		return nil, errors.New("BTF exceeds the maximum size")
+	}
+
+	attr := &sys.BtfLoadAttr{
+		Btf:     sys.SlicePointer(btf),
+		BtfSize: uint32(len(btf)),
+	}
+
+	var (
+		logBuf []byte
+		err    error
+	)
+	for {
+		var fd *sys.FD
+		fd, err = sys.BtfLoad(attr)
+		if err == nil {
+			return &Handle{fd, attr.BtfSize, false}, nil
+		}
+
+		if attr.BtfLogTrueSize != 0 && attr.BtfLogSize >= attr.BtfLogTrueSize {
+			// The log buffer already has the correct size.
+			break
+		}
+
+		if attr.BtfLogSize != 0 && !errors.Is(err, unix.ENOSPC) {
+			// Up until at least kernel 6.0, the BTF verifier does not return ENOSPC
+			// if there are other verification errors. ENOSPC is only returned when
+			// the BTF blob is correct, a log was requested, and the provided buffer
+			// is too small. We're therefore not sure whether we got the full
+			// log or not.
+			break
+		}
+
+		// Make an educated guess how large the buffer should be. Start
+		// at a reasonable minimum and then double the size.
+		logSize := uint32(max(len(logBuf)*2, minLogSize))
+		if int(logSize) < len(logBuf) {
+			return nil, errors.New("overflow while probing log buffer size")
+		}
+
+		if attr.BtfLogTrueSize != 0 {
+			// The kernel has given us a hint how large the log buffer has to be.
+			logSize = attr.BtfLogTrueSize
+		}
+
+		logBuf = make([]byte, logSize)
+		attr.BtfLogSize = logSize
+		attr.BtfLogBuf = sys.SlicePointer(logBuf)
+		attr.BtfLogLevel = 1
+	}
+
+	if err := haveBTF(); err != nil {
+		return nil, err
+	}
+
+	return nil, internal.ErrorWithLog("load btf", err, logBuf)
+}
+
+// NewHandleFromID returns the BTF handle for a given id.
+//
+// Prefer calling [ebpf.Program.Handle] or [ebpf.Map.Handle] if possible.
+//
+// Returns ErrNotExist, if there is no BTF with the given id.
+//
+// Requires CAP_SYS_ADMIN.
+func NewHandleFromID(id ID) (*Handle, error) {
+	if platform.IsWindows {
+		return nil, fmt.Errorf("btf: handle: %w", internal.ErrNotSupportedOnOS)
+	}
+
+	fd, err := sys.BtfGetFdById(&sys.BtfGetFdByIdAttr{
+		Id: uint32(id),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get FD for ID %d: %w", id, err)
+	}
+
+	info, err := newHandleInfoFromFD(fd)
+	if err != nil {
+		_ = fd.Close()
+		return nil, err
+	}
+
+	return &Handle{fd, info.size, info.IsModule()}, nil
+}
+
+// Spec parses the kernel BTF into Go types.
+//
+// base must contain type information for vmlinux if the handle is for
+// a kernel module. It may be nil otherwise.
+func (h *Handle) Spec(base *Spec) (*Spec, error) {
+	var btfInfo sys.BtfInfo
+	btfBuffer := make([]byte, h.size)
+	btfInfo.Btf = sys.SlicePointer(btfBuffer)
+	btfInfo.BtfSize = uint32(len(btfBuffer))
+
+	if err := sys.ObjInfo(h.fd, &btfInfo); err != nil {
+		return nil, err
+	}
+
+	if h.needsKernelBase && base == nil {
+		return nil, fmt.Errorf("missing base types")
+	}
+
+	return loadRawSpec(bytes.NewReader(btfBuffer), internal.NativeEndian, base)
+}
+
+// Close destroys the handle.
+//
+// Subsequent calls to FD will return an invalid value.
+func (h *Handle) Close() error {
+	if h == nil {
+		return nil
+	}
+
+	return h.fd.Close()
+}
+
+// FD returns the file descriptor for the handle.
+func (h *Handle) FD() int {
+	return h.fd.Int()
+}
+
+// Info returns metadata about the handle.
+func (h *Handle) Info() (*HandleInfo, error) {
+	return newHandleInfoFromFD(h.fd)
+}
 
 // HandleInfo describes a Handle.
 type HandleInfo struct {
@@ -46,7 +214,8 @@ func newHandleInfoFromFD(fd *sys.FD) (*HandleInfo, error) {
 	btfInfo.BtfSize = 0
 
 	nameBuffer := make([]byte, btfInfo.NameLen)
-	btfInfo.Name, btfInfo.NameLen = sys.NewSlicePointerLen(nameBuffer)
+	btfInfo.Name = sys.SlicePointer(nameBuffer)
+	btfInfo.NameLen = uint32(len(nameBuffer))
 	if err := sys.ObjInfo(fd, &btfInfo); err != nil {
 		return nil, err
 	}
@@ -59,7 +228,7 @@ func newHandleInfoFromFD(fd *sys.FD) (*HandleInfo, error) {
 	}, nil
 }
 
-// IsModule returns true if the BTF is for the kernel itself.
+// IsVmlinux returns true if the BTF is for the kernel itself.
 func (i *HandleInfo) IsVmlinux() bool {
 	return i.IsKernel && i.Name == "vmlinux"
 }
@@ -84,6 +253,11 @@ type HandleIterator struct {
 // Returns true if another BTF object was found. Call [HandleIterator.Err] after
 // the function returns false.
 func (it *HandleIterator) Next() bool {
+	if platform.IsWindows {
+		it.err = fmt.Errorf("btf: %w", internal.ErrNotSupportedOnOS)
+		return false
+	}
+
 	id := it.ID
 	for {
 		attr := &sys.BtfGetNextIdAttr{Id: id}
